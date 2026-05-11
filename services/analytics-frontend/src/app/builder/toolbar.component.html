@@ -1,0 +1,57 @@
+<header class="fd-toolbar">
+  <div class="fd-toolbar-brand">FASO Analytics — DAG Builder</div>
+
+  <div class="fd-toolbar-meta">
+    <label class="fd-field-inline">
+      <span class="fd-label">name</span>
+      <input
+        class="fd-input fd-input-sm"
+        [(ngModel)]="metadata.name"
+        (change)="emitMeta()"
+      />
+    </label>
+    <label class="fd-field-inline">
+      <span class="fd-label">subProject</span>
+      <select
+        class="fd-input fd-input-sm"
+        [(ngModel)]="metadata.subProject"
+        (change)="emitMeta()"
+      >
+        <option *ngFor="let s of subProjects" [value]="s">{{ s }}</option>
+      </select>
+    </label>
+    <label class="fd-field-inline">
+      <span class="fd-label">semver</span>
+      <input
+        class="fd-input fd-input-sm"
+        [(ngModel)]="metadata.semver"
+        (change)="emitMeta()"
+      />
+    </label>
+  </div>
+
+  <div class="fd-toolbar-actions">
+    <button type="button" class="fd-btn" (click)="onAction('new')">
+      Nouveau
+    </button>
+    <select class="fd-input fd-input-sm" [(ngModel)]="selectedExample">
+      <option *ngFor="let e of examples" [value]="e.id">{{ e.label }}</option>
+    </select>
+    <button
+      type="button"
+      class="fd-btn"
+      (click)="onAction('load-example', selectedExample)"
+    >
+      Charger
+    </button>
+    <button type="button" class="fd-btn" (click)="onAction('validate')">
+      Valider
+    </button>
+    <button type="button" class="fd-btn fd-btn-primary" (click)="onAction('export')">
+      Exporter JSON
+    </button>
+    <button type="button" class="fd-btn" (click)="onAction('simulate')">
+      Simuler
+    </button>
+  </div>
+</header>

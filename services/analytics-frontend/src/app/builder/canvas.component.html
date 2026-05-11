@@ -1,0 +1,112 @@
+<div class="fd-canvas-wrap">
+  <div class="fd-canvas-toolbar">
+    <button
+      type="button"
+      class="fd-btn"
+      [class.fd-btn-active]="linkMode"
+      (click)="toggleLinkMode()"
+      title="Cliquer 2 nœuds successifs pour créer un lien"
+    >
+      {{ linkMode ? 'Mode Lien: ON' : 'Mode Lien' }}
+    </button>
+    <button type="button" class="fd-btn" (click)="validateNow()">Valider</button>
+    <span class="fd-canvas-hint" *ngIf="linkMode">
+      Cliquer le nœud source puis le nœud cible
+    </span>
+  </div>
+
+  <div
+    id="fd-canvas-drop"
+    class="fd-canvas-drop"
+    cdkDropList
+    [cdkDropListData]="dag.nodes"
+    (cdkDropListDropped)="onDropFromPalette($event)"
+    (click)="onCanvasClick()"
+  >
+    <ng-container *ngIf="dag.nodes.length === 0">
+      <div class="fd-canvas-empty">
+        Glisser un nœud depuis la palette pour commencer.
+      </div>
+    </ng-container>
+
+    <ngx-graph
+      *ngIf="dag.nodes.length > 0"
+      class="fd-graph"
+      [view]="[1200, 600]"
+      [nodes]="graphNodes"
+      [links]="graphLinks"
+      [layout]="'dagre'"
+      [draggingEnabled]="false"
+      [enableZoom]="true"
+      [autoZoom]="false"
+      [panningEnabled]="true"
+    >
+      <ng-template #nodeTemplate let-node>
+        <svg:g
+          class="fd-graph-node"
+          [class.fd-graph-node-selected]="node.data?.selected"
+          [class.fd-graph-node-link]="linkMode"
+          (click)="onNodeClick(node); $event.stopPropagation()"
+        >
+          <svg:rect
+            [attr.width]="160"
+            [attr.height]="50"
+            rx="6"
+            [attr.fill]="
+              node.data?.kind === 'source' ? '#dbeafe' :
+              node.data?.kind === 'visualization' ? '#fef3c7' :
+              node.data?.kind === 'kpi' ? '#dcfce7' :
+              node.data?.kind === 'output' ? '#fce7f3' :
+              '#f1f5f9'
+            "
+            [attr.stroke]="node.data?.selected ? '#2563eb' : '#94a3b8'"
+            [attr.stroke-width]="node.data?.selected ? 2 : 1"
+          />
+          <svg:text
+            [attr.x]="80"
+            [attr.y]="22"
+            text-anchor="middle"
+            class="fd-graph-node-title"
+          >
+            {{ node.label }}
+          </svg:text>
+          <svg:text
+            [attr.x]="80"
+            [attr.y]="40"
+            text-anchor="middle"
+            class="fd-graph-node-kind"
+          >
+            {{ node.data?.kind }}
+          </svg:text>
+        </svg:g>
+      </ng-template>
+
+      <ng-template #linkTemplate let-link>
+        <svg:g class="fd-graph-link" (contextmenu)="onLinkContextMenu($event, link)">
+          <svg:path
+            class="fd-graph-link-line"
+            [attr.d]="link.line"
+            stroke="#64748b"
+            stroke-width="2"
+            fill="none"
+            marker-end="url(#arrow)"
+          />
+        </svg:g>
+      </ng-template>
+
+      <ng-template #defsTemplate>
+        <svg:marker
+          id="arrow"
+          viewBox="0 -5 10 10"
+          refX="8"
+          refY="0"
+          markerWidth="6"
+          markerHeight="6"
+          orient="auto"
+        >
+          <svg:path d="M0,-5L10,0L0,5" fill="#64748b" />
+        </svg:marker>
+      </ng-template>
+    </ngx-graph>
+  </div>
+</div>
