@@ -1,3 +1,14 @@
+@import "ag-grid-community/styles/ag-grid.css";
+@import "ag-grid-community/styles/ag-theme-alpine.css";
+
+:root {
+  --polarity-neutral: #7b61ff;
+  --polarity-positive: #1fab5a;
+  --polarity-warning: #f0a12a;
+  --polarity-critical: #e0413b;
+  --violet: #7b61ff;
+}
+
 html, body {
   margin: 0;
   padding: 0;
