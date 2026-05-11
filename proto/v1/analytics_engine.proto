@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package faso.analytics.engine.v1;
+
+option java_package = "bf.faso.analytics.engine.v1";
+option java_outer_classname = "AnalyticsEngineProto";
+option java_multiple_files = true;
+option go_package = "github.com/fasodigit/faso-analytics-workflow/proto/v1;analyticsenginev1";
+
+// =====================================================================
+// FASO-ANALYTICS-WORKFLOW — analytics-engine gRPC service
+// Cohérent ADR-001 (DataFusion Rust via Tonic) + ADR-002 (JSON Schema)
+// =====================================================================
+
+service AnalyticsEngine {
+  // Parse une définition workflow (JSON canonicalisé) en plan logique
+  // DataFusion. Le plan est mis en cache côté engine (clé = plan_id UUID).
+  // Réponse renvoie le schéma de sortie inféré pour validation côté API.
+  rpc Compile(CompileRequest) returns (CompileResponse);
+
+  // Valide une définition workflow sans la matérialiser en plan. Retourne
+  // les violations JSON Schema + violations sémantiques (ex. champ
+  // référencé inexistant dans la source).
+  rpc Validate(ValidateRequest) returns (ValidationReport);
+
+  // Exécute un plan compilé sur une source. Stream Arrow IPC RecordBatch.
+  // Pour la simulation : source_handle pointe vers un sample DragonflyDB.
+  // Pour la production : source_handle pointe vers YugabyteDB direct.
+  rpc Execute(ExecuteRequest) returns (stream RecordBatchChunk);
+}
+
+// ----- Compile --------------------------------------------------------
+
+message CompileRequest {
+  // Définition workflow JSON canonicalisée (JCS RFC 8785).
+  // Doit être conforme à schemas/workflow-v1.json.
+  string definition_jcs = 1;
+}
+
+message CompileResponse {
+  // UUID du plan compilé, à passer à Execute().
+  string plan_id = 1;
+  // Schéma Arrow inféré du résultat final (sérialisé Arrow IPC schema).
+  bytes output_arrow_schema = 2;
+  // Étapes du plan avec coût estimé (pour UI explain).
+  repeated PlanStep steps = 3;
+}
+
+message PlanStep {
+  string id          = 1;
+  string kind        = 2;  // "source" | "filter" | "join" | ...
+  string description = 3;
+  uint64 estimated_rows = 4;
+  double estimated_cost = 5;
+}
+
+// ----- Validate -------------------------------------------------------
+
+message ValidateRequest {
+  string definition_jcs = 1;
+  // Optionnel : schéma source actuel pour validation sémantique référentielle.
+  bytes  source_arrow_schema = 2;
+}
+
+message ValidationReport {
+  bool   ok = 1;
+  repeated ValidationError errors = 2;
+  repeated ValidationWarning warnings = 3;
+}
+
+message ValidationError {
+  string path    = 1;   // JSON pointer ex: "/spec/pipeline/2/expression"
+  string code    = 2;   // SCHEMA_VIOLATION, FIELD_NOT_FOUND, TYPE_MISMATCH, ...
+  string message = 3;
+}
+
+message ValidationWarning {
+  string path    = 1;
+  string code    = 2;
+  string message = 3;
+}
+
+// ----- Execute --------------------------------------------------------
+
+message ExecuteRequest {
+  string plan_id          = 1;
+  SourceHandle source     = 2;
+  // Limite stricte de lignes (utile pour simulation).
+  uint64 row_limit        = 3;
+}
+
+message SourceHandle {
+  oneof kind {
+    YugabyteSource  yugabyte    = 1;
+    DragonflySource dragonfly   = 2;
+    UploadSource    upload      = 3;
+  }
+}
+
+message YugabyteSource {
+  string connection_string = 1;  // jdbc:postgresql://...
+  string schema_name       = 2;
+  string table_name        = 3;
+}
+
+message DragonflySource {
+  string url = 1;
+  string key = 2;   // ex: simulation:{sim_id}:sample
+}
+
+message UploadSource {
+  string s3_uri = 1;   // minio path
+  string format = 2;   // csv | parquet | xlsx | jsonl
+}
+
+message RecordBatchChunk {
+  // Arrow IPC RecordBatch sérialisé (zero-copy côté lecteur Java/TS).
+  bytes arrow_ipc = 1;
+  uint64 sequence = 2;
+  bool   is_last  = 3;
+}
