@@ -1,0 +1,7 @@
+<div class="chart-wrapper">
+  @if (chartOptions) {
+    <div class="chart-host" echarts [options]="chartOptions"></div>
+  } @else {
+    <div class="chart-placeholder">{{ placeholderMessage }}</div>
+  }
+</div>

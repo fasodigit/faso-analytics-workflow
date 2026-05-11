@@ -61,11 +61,11 @@
       <version>4.2.0</version>
     </dependency>
 
-    <!-- YugabyteDB R2DBC driver -->
+    <!-- YugabyteDB R2DBC driver (Maven Central) -->
     <dependency>
       <groupId>com.yugabyte</groupId>
       <artifactId>r2dbc-postgresql</artifactId>
-      <version>0.8.1-yb-13-ea</version>
+      <version>1.1.0-yb-1-ea</version>
     </dependency>
 
     <!-- Flyway sur YB -->
@@ -84,12 +84,17 @@
 
     <!-- BLAKE3 -->
     <dependency>
-      <groupId>com.github.rctcwyvrn</groupId>
+      <groupId>io.github.rctcwyvrn</groupId>
       <artifactId>blake3</artifactId>
       <version>1.3</version>
     </dependency>
 
     <!-- gRPC vers analytics-engine -->
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+      <version>${protobuf.version}</version>
+    </dependency>
     <dependency>
       <groupId>io.grpc</groupId>
       <artifactId>grpc-netty-shaded</artifactId>
@@ -99,6 +104,12 @@
       <groupId>io.grpc</groupId>
       <artifactId>grpc-protobuf</artifactId>
       <version>${grpc.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>com.google.protobuf</groupId>
+          <artifactId>protobuf-java</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.grpc</groupId>
@@ -151,6 +162,13 @@
   </dependencies>
 
   <build>
+    <extensions>
+      <extension>
+        <groupId>kr.motd.maven</groupId>
+        <artifactId>os-maven-plugin</artifactId>
+        <version>1.7.1</version>
+      </extension>
+    </extensions>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>
@@ -167,6 +185,15 @@
           <schemas><schema>workflow</schema></schemas>
         </configuration>
       </plugin>
+      <!--
+        Phase 1 : la génération gRPC Java est désactivée car la chaîne
+        protoc 4.x + grpc-java 1.68 produit du code qui référence
+        `javax.annotation.Generated` (retiré du JDK depuis Java 11) et
+        analytics-api n'appelle pas encore le RPC Compile() côté Java.
+        Phase 2 réactivera ce plugin en ajoutant la dépendance
+        javax.annotation:javax.annotation-api (ou en migrant vers
+        grpc-stub's annotation-free generator).
+      -->
       <plugin>
         <groupId>org.xolstice.maven.plugins</groupId>
         <artifactId>protobuf-maven-plugin</artifactId>
@@ -176,17 +203,13 @@
           <pluginId>grpc-java</pluginId>
           <pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
           <protoSourceRoot>${project.basedir}/../../proto</protoSourceRoot>
+          <skip>true</skip>
         </configuration>
         <executions>
           <execution>
             <goals><goal>compile</goal><goal>compile-custom</goal></goals>
           </execution>
         </executions>
-      </plugin>
-      <plugin>
-        <groupId>kr.motd.maven</groupId>
-        <artifactId>os-maven-plugin</artifactId>
-        <version>1.7.1</version>
       </plugin>
     </plugins>
   </build>
