@@ -1,0 +1,339 @@
+:host {
+  --fd-bg: var(--fd-color-bg, #f5f5f7);
+  --fd-surface: var(--fd-color-surface, #ffffff);
+  --fd-border: var(--fd-color-border, #e2e8f0);
+  --fd-text: var(--fd-color-text, #1a1a1a);
+  --fd-muted: var(--fd-color-muted, #64748b);
+  --fd-accent: var(--fd-color-accent, #2563eb);
+  --polarity-positive: var(--polarity-positive-color, #16a34a);
+  --polarity-negative: var(--polarity-negative-color, #dc2626);
+  --polarity-neutral: var(--polarity-neutral-color, #64748b);
+
+  display: block;
+  height: 100vh;
+  background: var(--fd-bg);
+  color: var(--fd-text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+}
+
+.fd-builder-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.fd-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: var(--fd-surface);
+  border-bottom: 1px solid var(--fd-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  flex-wrap: wrap;
+}
+
+.fd-toolbar-brand {
+  font-weight: 600;
+  color: var(--fd-accent);
+}
+
+.fd-toolbar-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.fd-toolbar-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.fd-field-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fd-builder-body {
+  display: grid;
+  grid-template-columns: 240px 1fr 320px;
+  flex: 1;
+  min-height: 0;
+}
+
+.fd-builder-left,
+.fd-builder-right {
+  background: var(--fd-surface);
+  border-right: 1px solid var(--fd-border);
+  overflow-y: auto;
+}
+
+.fd-builder-right {
+  border-right: 0;
+  border-left: 1px solid var(--fd-border);
+}
+
+.fd-builder-center {
+  position: relative;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+// Palette
+.fd-palette {
+  padding: 12px;
+}
+
+.fd-palette-title {
+  margin: 0 0 12px 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fd-muted);
+}
+
+.fd-palette-section {
+  margin-bottom: 16px;
+}
+
+.fd-palette-section-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--fd-muted);
+  margin-bottom: 6px;
+}
+
+.fd-palette-item {
+  padding: 8px 10px;
+  border: 1px solid var(--fd-border);
+  border-radius: 6px;
+  background: var(--fd-surface);
+  cursor: grab;
+  margin-bottom: 6px;
+  transition: background 0.15s, border-color 0.15s;
+
+  &:hover {
+    border-color: var(--fd-accent);
+    background: #f8fafc;
+  }
+}
+
+.fd-palette-item-label {
+  font-weight: 500;
+}
+
+.fd-palette-item-desc {
+  font-size: 0.75rem;
+  color: var(--fd-muted);
+  margin-top: 2px;
+}
+
+.fd-palette-item-preview {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+// Canvas
+.fd-canvas-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.fd-canvas-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--fd-surface);
+  border-bottom: 1px solid var(--fd-border);
+}
+
+.fd-canvas-hint {
+  font-size: 0.8rem;
+  color: var(--polarity-positive);
+}
+
+.fd-canvas-drop {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+}
+
+.fd-canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fd-muted);
+  font-style: italic;
+}
+
+.fd-graph {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.fd-graph-node {
+  cursor: pointer;
+}
+
+.fd-graph-node-link {
+  cursor: crosshair;
+}
+
+.fd-graph-node-title {
+  font-size: 13px;
+  font-weight: 500;
+  fill: #0f172a;
+}
+
+.fd-graph-node-kind {
+  font-size: 10px;
+  fill: var(--fd-muted);
+}
+
+.fd-graph-link-line {
+  pointer-events: stroke;
+  cursor: context-menu;
+}
+
+// Sidebar
+.fd-sidebar {
+  padding: 12px;
+}
+
+.fd-sidebar-title {
+  margin: 0 0 12px 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fd-muted);
+}
+
+.fd-sidebar-empty {
+  color: var(--fd-muted);
+  font-style: italic;
+  padding: 12px 0;
+}
+
+// Generic fields
+.fd-field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+}
+
+.fd-label {
+  font-size: 0.75rem;
+  color: var(--fd-muted);
+  margin-bottom: 4px;
+}
+
+.fd-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--fd-border);
+  border-radius: 4px;
+  background: var(--fd-surface);
+  color: var(--fd-text);
+  font-size: 0.85rem;
+  font-family: inherit;
+
+  &:focus {
+    border-color: var(--fd-accent);
+    outline: 1px solid var(--fd-accent);
+    outline-offset: -1px;
+  }
+}
+
+.fd-input-sm {
+  padding: 4px 6px;
+  font-size: 0.8rem;
+  width: auto;
+  min-width: 120px;
+}
+
+.fd-textarea {
+  font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+  resize: vertical;
+}
+
+// Buttons
+.fd-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--fd-border);
+  border-radius: 4px;
+  background: var(--fd-surface);
+  color: var(--fd-text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+
+  &:hover {
+    border-color: var(--fd-accent);
+  }
+}
+
+.fd-btn-primary {
+  background: var(--fd-accent);
+  color: white;
+  border-color: var(--fd-accent);
+
+  &:hover {
+    filter: brightness(1.1);
+  }
+}
+
+.fd-btn-active {
+  background: var(--polarity-positive);
+  color: white;
+  border-color: var(--polarity-positive);
+}
+
+.fd-btn-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--fd-border);
+  background: var(--fd-surface);
+  color: var(--fd-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.fd-btn-add {
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border: 1px dashed var(--fd-border);
+  background: transparent;
+  color: var(--fd-accent);
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 6px;
+}
+
+// Repeat
+.fd-repeat {
+  border: 1px dashed var(--fd-border);
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 10px;
+}
+
+.fd-repeat-row {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  background: #f8fafc;
+  padding: 6px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}

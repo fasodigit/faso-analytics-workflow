@@ -1,0 +1,31 @@
+<div class="fd-sidebar">
+  <h3 class="fd-sidebar-title">Paramètres</h3>
+  <ng-container *ngIf="node; else noSel">
+    <div class="fd-field">
+      <span class="fd-label">id</span>
+      <input class="fd-input" [value]="node.id" readonly />
+    </div>
+    <div class="fd-field">
+      <span class="fd-label">label</span>
+      <input
+        class="fd-input"
+        [value]="node.label"
+        (input)="onLabelEdit($any($event.target).value)"
+      />
+    </div>
+    <form [formGroup]="form" (ngSubmit)="$event.preventDefault()">
+      <formly-form
+        [form]="form"
+        [model]="model"
+        [fields]="fields"
+        (modelChange)="onModelChange($any($event))"
+      ></formly-form>
+    </form>
+  </ng-container>
+  <ng-template #noSel>
+    <div class="fd-sidebar-empty">
+      Aucun nœud sélectionné. Cliquer sur un nœud du canvas pour éditer ses
+      paramètres.
+    </div>
+  </ng-template>
+</div>

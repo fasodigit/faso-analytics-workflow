@@ -1,0 +1,30 @@
+<div class="fd-builder-root">
+  <fd-toolbar
+    [metadata]="metadata()"
+    (metadataChange)="onMetadataChange($event)"
+    (action)="onToolbarAction($event)"
+  ></fd-toolbar>
+
+  <main class="fd-builder-body">
+    <aside class="fd-builder-left">
+      <fd-palette></fd-palette>
+    </aside>
+    <section class="fd-builder-center">
+      <fd-canvas
+        [dag]="dag()"
+        [selectedNodeId]="selectedNodeId()"
+        [linkMode]="linkMode()"
+        (dagChange)="onDagChange($event)"
+        (nodeSelected)="onSelect($event)"
+        (linkModeChange)="onLinkModeChange($event)"
+      ></fd-canvas>
+    </section>
+    <aside class="fd-builder-right">
+      <fd-params-sidebar
+        [node]="selectedNode"
+        (paramsChange)="onParamsChange($event)"
+        (labelChange)="onLabelChange($event)"
+      ></fd-params-sidebar>
+    </aside>
+  </main>
+</div>
