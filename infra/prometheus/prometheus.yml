@@ -1,0 +1,57 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: faso-analytics
+    env: ${ENV}
+
+rule_files:
+  - /etc/prometheus/recording_rules.yml
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+scrape_configs:
+  - job_name: analytics-api
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['analytics-api:8080']
+        labels:
+          service: analytics-api
+          tier: backend
+
+  - job_name: analytics-engine
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['analytics-engine:9090']
+        labels:
+          service: analytics-engine
+          tier: backend
+
+  - job_name: analytics-simulator
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['analytics-simulator:9091']
+        labels:
+          service: analytics-simulator
+          tier: backend
+
+  - job_name: analytics-sandbox
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['analytics-sandbox-supervisor:9092']
+        labels:
+          service: analytics-sandbox
+          tier: runtime
+
+  - job_name: otel-collector
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['otel-collector:9464']
+        labels:
+          service: otel-collector
+          tier: telemetry

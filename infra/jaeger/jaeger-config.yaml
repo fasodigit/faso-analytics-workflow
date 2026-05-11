@@ -1,0 +1,52 @@
+collector:
+  zipkin:
+    host-port: ":9411"
+  otlp:
+    grpc:
+      host-port: ":4317"
+    http:
+      host-port: ":4318"
+  grpc:
+    host-port: ":14250"
+  http:
+    host-port: ":14268"
+
+query:
+  port: 16686
+  base-path: /
+  static-files: /go/jaeger-ui/
+
+agent:
+  http-server:
+    host-port: ":5778"
+  processors:
+    - model: zipkin
+      protocol: compact
+      server-host-port: ":5775"
+    - model: jaeger
+      protocol: compact
+      server-host-port: ":6831"
+    - model: jaeger
+      protocol: binary
+      server-host-port: ":6832"
+
+storage:
+  type: memory
+  options:
+    memory:
+      max-traces: 50000
+
+sampling:
+  default_strategy:
+    type: probabilistic
+    param: 1.0
+  service_strategies:
+    - service: analytics-api
+      type: probabilistic
+      param: 0.1
+    - service: analytics-engine
+      type: probabilistic
+      param: 0.1
+    - service: analytics-simulator
+      type: probabilistic
+      param: 0.5
