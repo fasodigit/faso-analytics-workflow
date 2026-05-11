@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package faso.analytics.v1;
+
+option java_package = "bf.faso.analytics.v1";
+option java_outer_classname = "WorkflowEventProto";
+option java_multiple_files = true;
+option go_package = "github.com/fasodigit/faso-analytics-workflow/proto/v1;analyticsv1";
+
+// =====================================================================
+// FASO-ANALYTICS-WORKFLOW — événements
+// Topic Redpanda : faso.analytics.workflow.events
+// Hash-tag DragonflyDB : {workflow:<workflow_id>}
+// =====================================================================
+
+message WorkflowEvent {
+  string event_id      = 1;   // UUID v7 (RFC 9562 ordered)
+  string occurred_at   = 2;   // RFC 3339 timestamp
+  string actor_subject = 3;   // Kratos identity
+  string sub_project   = 4;   // VOUCHERS, E_TICKET, ETAT_CIVIL, ...
+  string workflow_id   = 5;   // UUID
+  string version_id    = 6;   // UUID (peut être vide pour WORKFLOW_CREATED)
+  EventType type       = 7;
+  bytes  blake3_self   = 8;   // 32 bytes
+  bytes  blake3_parent = 9;   // 32 bytes ou vide pour racine
+  bytes  payload       = 10;  // CBOR-encoded, schéma défini par EventType
+  string key_version   = 11;  // version de clé Vault (cf. ADR-005)
+}
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED          = 0;
+  WORKFLOW_CREATED                = 1;
+  WORKFLOW_DUPLICATED             = 2;
+  VERSION_DRAFT_UPDATED           = 3;
+  SIMULATION_REQUESTED            = 4;
+  SIMULATION_STARTED              = 5;
+  SIMULATION_COMPLETED            = 6;
+  SIMULATION_FAILED               = 7;
+  SIMULATION_TIMEOUT              = 8;
+  VERSION_APPROVED                = 9;
+  VERSION_DEPLOYED                = 10;
+  VERSION_ROLLED_BACK             = 11;
+  SCHEMA_DRIFT_DETECTED           = 12;
+  KPI_THRESHOLD_BREACHED          = 13;
+  WORKFLOW_ARCHIVED               = 14;
+  CONNECTOR_ROTATED               = 15;
+}
+
+// =====================================================================
+// Payloads CBOR-décodés (à valider via JSON Schema séparé)
+// =====================================================================
+
+message SimulationCompletedPayload {
+  string simulation_id = 1;
+  int64  duration_ms   = 2;
+  int32  sample_size   = 3;
+  string sample_strategy = 4;
+  bool   succeeded     = 5;
+  string result_uri    = 6;  // dragonfly key, TTL 24h
+}
+
+message SchemaDriftPayload {
+  repeated string new_fields     = 1;
+  repeated string removed_fields = 2;
+  repeated RenamedField renamed  = 3;
+  repeated TypeChange   type_changes = 4;
+}
+
+message RenamedField {
+  string from  = 1;
+  string to    = 2;
+  double score = 3;
+}
+
+message TypeChange {
+  string field     = 1;
+  string from_type = 2;
+  string to_type   = 3;
+}
+
+message KpiThresholdBreachedPayload {
+  string kpi_id    = 1;
+  double previous  = 2;
+  double current   = 3;
+  double delta_pct = 4;
+  double threshold = 5;
+  string polarity  = 6;  // more_better, less_better, neutral
+  string severity  = 7;  // WARNING, CRITICAL
+}

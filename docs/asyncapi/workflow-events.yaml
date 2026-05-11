@@ -1,0 +1,76 @@
+asyncapi: 3.0.0
+info:
+  title: FASO Analytics Workflow — Events
+  version: "1.0.0"
+  description: |
+    Topic Redpanda `faso.analytics.workflow.events`.
+    Schema registry : protobuf, fichier `proto/v1/workflow_event.proto`.
+    Hash-tag DragonflyDB par `workflow_id`.
+
+defaultContentType: application/cloudevents+protobuf
+
+servers:
+  redpanda-prod:
+    host: redpanda.faso-digitalisation.bf:9092
+    protocol: kafka-secure
+    description: Redpanda production
+    security:
+      - mtls: []
+
+channels:
+  workflow.events:
+    address: faso.analytics.workflow.events
+    description: Tous les événements de cycle de vie d'un workflow analytique
+    messages:
+      WorkflowEvent: { $ref: "#/components/messages/WorkflowEvent" }
+
+operations:
+  publishWorkflowEvent:
+    action: send
+    channel: { $ref: "#/channels/workflow.events" }
+    summary: Publier un événement de workflow
+    messages:
+      - { $ref: "#/channels/workflow.events/messages/WorkflowEvent" }
+
+  consumeWorkflowEvent:
+    action: receive
+    channel: { $ref: "#/channels/workflow.events" }
+    summary: Consommer les événements (subscribers KAYA cache invalidation, scheduler, audit-chain)
+    messages:
+      - { $ref: "#/channels/workflow.events/messages/WorkflowEvent" }
+
+components:
+  securitySchemes:
+    mtls:
+      type: x509
+      description: SPIFFE/SPIRE workload identity
+
+  messages:
+    WorkflowEvent:
+      name: WorkflowEvent
+      title: WorkflowEvent
+      contentType: application/protobuf
+      payload:
+        $ref: "https://schemas.faso-digitalisation.bf/proto/analytics/v1/WorkflowEvent.proto"
+      examples:
+        - name: workflow_created
+          payload:
+            event_id: "01HK2EX5..."
+            occurred_at: "2026-05-11T14:32:00Z"
+            actor_subject: "user:traore.lionel@gmail.com"
+            sub_project: "VOUCHERS"
+            workflow_id: "..."
+            version_id: "..."
+            type: "WORKFLOW_CREATED"
+        - name: simulation_completed
+          payload:
+            type: "SIMULATION_COMPLETED"
+            sub_project: "HOSPITAL"
+            workflow_id: "..."
+            version_id: "..."
+        - name: schema_drift_detected
+          payload:
+            type: "SCHEMA_DRIFT_DETECTED"
+            sub_project: "ETAT_CIVIL"
+            workflow_id: "..."
+            version_id: "..."

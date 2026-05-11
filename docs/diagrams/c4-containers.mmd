@@ -1,0 +1,47 @@
+%%{init: {'theme':'neutral'}}%%
+graph TB
+    classDef container fill:#438DD5,stroke:#3B7DBE,color:#fff
+    classDef store fill:#1168BD,stroke:#0B4884,color:#fff
+    classDef external fill:#999,stroke:#666,color:#fff
+
+    subgraph "FASO-ANALYTICS-WORKFLOW (6 containers podman rootless)"
+        API["<b>analytics-api</b><br/>Java 21 / Spring Boot / Netty / VT<br/>2 réplicas HA<br/>REST + STOMP"]:::container
+        Engine["<b>analytics-engine</b><br/>Rust / DataFusion / Arrow / Tonic<br/>2 réplicas<br/>gRPC streaming"]:::container
+        Simulator["<b>analytics-simulator</b><br/>Rust + Podman-in-Podman<br/>1 réplica (scalable)<br/>sandboxes éphémères"]:::container
+        Scheduler["<b>analytics-scheduler</b><br/>Java 21 / Spring Boot / Quartz<br/>1 active + 1 standby<br/>cron + event triggers"]:::container
+        CDC["<b>analytics-cdc-consumer</b><br/>Java 21 / Redpanda client<br/>2 réplicas<br/>déclencheurs temps réel"]:::container
+        FE["<b>analytics-frontend</b><br/>Angular + Nginx<br/>via gateway"]:::container
+    end
+
+    YB["YugabyteDB<br/>schema=workflow"]:::store
+    DF["DragonflyDB<br/>hash-tag {workflow:id}"]:::store
+    RP["Redpanda<br/>faso.analytics.workflow.events"]:::store
+    Vault["Vault<br/>transit + KV"]:::store
+    Keto["Ory Keto<br/>SubProject + Workflow ns"]:::store
+
+    Browser["Browser utilisateur"]:::external
+    Sandbox["Sandbox éphémère<br/>(podman --read-only --cap-drop=ALL<br/> --memory=2g seccomp+AppArmor)"]:::external
+
+    Browser -->|HTTPS REST+STOMP| FE
+    FE -->|"REST /v1/*"| API
+    FE -->|STOMP /ws/analytics| API
+
+    API <-->|gRPC Arrow IPC stream| Engine
+    API -->|"INSERT version, audit"| YB
+    API -->|sample matérialisé| DF
+    API -->|"WorkflowEvent"| RP
+    API <-->|"Compile, Validate, Execute"| Engine
+    API -->|"check authz"| Keto
+    API -->|"secrets lease 15min"| Vault
+
+    Simulator -->|"podman run sandbox"| Sandbox
+    Sandbox -->|"streams Arrow IPC"| Simulator
+    Simulator -->|status update| DF
+    Simulator -->|"SIMULATION_*"| RP
+    API -->|"create simulation job"| Simulator
+
+    Scheduler -->|"executes workflow"| API
+    Scheduler -->|"cron tick"| YB
+
+    CDC -->|"consume topics"| RP
+    CDC -->|"trigger workflow"| API

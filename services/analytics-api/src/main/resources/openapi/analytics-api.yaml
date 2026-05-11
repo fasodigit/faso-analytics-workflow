@@ -1,0 +1,525 @@
+openapi: 3.1.0
+info:
+  title: FASO Analytics Workflow API
+  version: "1.0.0"
+  description: |
+    REST API du module FASO-ANALYTICS-WORKFLOW.
+    Toutes les requêtes passent par ARMAGEDDON Gateway (mTLS SPIFFE).
+    Autorisations Ory Keto en post-routing.
+  contact:
+    name: Plateforme FASO DIGITALISATION
+servers:
+  - url: https://armageddon.faso-digitalisation.bf/analytics
+    description: production
+  - url: https://armageddon-preprod.faso-digitalisation.bf/analytics
+    description: pre-production
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: workflows
+  - name: versions
+  - name: simulations
+  - name: approvals
+  - name: deployments
+  - name: audit
+  - name: schema-drift
+  - name: connectors
+
+paths:
+  /v1/workflows:
+    get:
+      tags: [workflows]
+      summary: Lister les workflows accessibles
+      parameters:
+        - { in: query, name: sub_project, schema: { type: string } }
+        - { in: query, name: status, schema: { type: string, enum: [DRAFT,SIMULATING,VALIDATED,DEPLOYED,DEPRECATED,ARCHIVED] } }
+        - { in: query, name: q, schema: { type: string }, description: full-text on name/description }
+        - { in: query, name: page, schema: { type: integer, default: 1 } }
+        - { in: query, name: size, schema: { type: integer, default: 20, maximum: 100 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PageOfWorkflowSummary" }
+    post:
+      tags: [workflows]
+      summary: Créer un workflow (état DRAFT)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateWorkflowRequest" }
+      responses:
+        "201": { $ref: "#/components/responses/WorkflowCreated" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /v1/workflows/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [workflows]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkflowDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/workflows/{id}/duplicate:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [workflows]
+      summary: Dupliquer un workflow (nouvelle lignée, version 1.0.0-draft.1)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_name]
+              properties:
+                new_name: { type: string, pattern: "^[a-z][a-z0-9-]{2,63}$" }
+                description: { type: string }
+      responses:
+        "201": { $ref: "#/components/responses/WorkflowCreated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /v1/workflows/{id}/versions/{ver}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      - { in: path, name: ver, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [versions]
+      summary: Mettre à jour la définition d'une version DRAFT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkflowDefinition" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkflowVersionDetail" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "409": { description: Version verrouillée (non DRAFT) }
+
+  /v1/workflows/{id}/versions/{ver}/simulate:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      - { in: path, name: ver, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [simulations]
+      summary: Lancer une simulation sur échantillon
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SimulationRequest" }
+      responses:
+        "202":
+          description: Acceptée — simulation en queue
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  simulation_id: { type: string, format: uuid }
+                  status: { const: QUEUED }
+                  websocket_topic: { type: string, example: "/topic/simulation.{simId}.progress" }
+
+  /v1/simulations/{simId}:
+    parameters:
+      - { in: path, name: simId, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [simulations]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Simulation" }
+
+  /v1/simulations/{simId}/diff:
+    parameters:
+      - { in: path, name: simId, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [simulations]
+      summary: Diff vs version DEPLOYED précédente du même workflow
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DiffReport" }
+
+  /v1/workflows/{id}/versions/{ver}/approve:
+    post:
+      tags: [approvals]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+        - { in: path, name: ver, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comment: { type: string, maxLength: 512 }
+      responses:
+        "200":
+          description: Approuvé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  approval_id: { type: string, format: uuid }
+                  approvals_count: { type: integer }
+                  approvals_required: { type: integer, description: "2 si is_critical=true sinon 1" }
+                  ready_to_deploy: { type: boolean }
+        "403": { description: "Refusé — un approbateur ne peut pas être l'éditeur" }
+
+  /v1/workflows/{id}/versions/{ver}/deploy:
+    post:
+      tags: [deployments]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+        - { in: path, name: ver, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [strategy]
+              properties:
+                strategy: { type: string, enum: [DIRECT, SHADOW, BLUE_GREEN] }
+                shadow_duration_hours: { type: integer, minimum: 1, maximum: 720,
+                                          description: "Requis si strategy=SHADOW" }
+      responses:
+        "200":
+          description: Déploiement initié
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Deployment" }
+        "409":
+          description: |
+            Refusé pour cause :
+            - approvals_count < approvals_required
+            - simulation absente ou > 7 jours
+            - simulation FAILED ou WITHIN_THRESHOLD=false
+            - is_critical=true et strategy != SHADOW
+
+  /v1/workflows/{id}/versions/{ver}/rollback:
+    post:
+      tags: [deployments]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+        - { in: path, name: ver, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, maxLength: 1024 }
+      responses:
+        "200":
+          description: Rollback effectué (cible < 60s)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Deployment" }
+
+  /v1/workflows/{id}/audit:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      - { in: query, name: from, schema: { type: string, format: date-time } }
+      - { in: query, name: to, schema: { type: string, format: date-time } }
+      - { in: query, name: page, schema: { type: integer, default: 1 } }
+      - { in: query, name: size, schema: { type: integer, default: 50, maximum: 200 } }
+    get:
+      tags: [audit]
+      summary: Chaîne d'audit BLAKE3 (append-only, vérifiable offline)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PageOfAuditEntry" }
+
+  /v1/workflows/{id}/schema-drift:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [schema-drift]
+      summary: Drift entre schema_snapshot de la version DEPLOYED et le schéma source actuel
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SchemaDriftReport" }
+
+  /v1/connectors:
+    get:
+      tags: [connectors]
+      summary: Lister les connecteurs accessibles
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Connector" }
+    post:
+      tags: [connectors]
+      summary: Créer un connecteur (référence Vault, pas de secret en clair)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Connector" }
+      responses:
+        "201":
+          description: Créé
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Kratos émis par ARMAGEDDON, vérifié via OAuth2 resource server
+
+  responses:
+    WorkflowCreated:
+      description: Workflow créé
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/WorkflowDetail" }
+    NotFound:
+      description: Ressource introuvable
+    Forbidden:
+      description: Refusé par Keto
+    Conflict:
+      description: Conflit d'état
+    ValidationError:
+      description: Définition non conforme au JSON Schema workflow-v1.json
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail: { type: string }
+              errors:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    path: { type: string }
+                    message: { type: string }
+
+  schemas:
+    PageOfWorkflowSummary:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/WorkflowSummary" }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer }
+
+    WorkflowSummary:
+      type: object
+      properties:
+        workflow_id: { type: string, format: uuid }
+        sub_project: { type: string }
+        name: { type: string }
+        is_critical: { type: boolean }
+        active_version:
+          type: object
+          properties:
+            version_id: { type: string, format: uuid }
+            semver: { type: string }
+            deployed_at: { type: string, format: date-time }
+        owner_subject: { type: string }
+        updated_at: { type: string, format: date-time }
+
+    WorkflowDetail:
+      allOf:
+        - $ref: "#/components/schemas/WorkflowSummary"
+        - type: object
+          properties:
+            description: { type: string }
+            parent_workflow_id: { type: string, format: uuid, nullable: true }
+            versions:
+              type: array
+              items: { $ref: "#/components/schemas/WorkflowVersionSummary" }
+
+    WorkflowVersionSummary:
+      type: object
+      properties:
+        version_id: { type: string, format: uuid }
+        semver: { type: string }
+        status: { type: string }
+        created_at: { type: string, format: date-time }
+        deployed_at: { type: string, format: date-time, nullable: true }
+
+    WorkflowVersionDetail:
+      allOf:
+        - $ref: "#/components/schemas/WorkflowVersionSummary"
+        - type: object
+          properties:
+            definition: { $ref: "#/components/schemas/WorkflowDefinition" }
+            schema_snapshot: { type: object }
+            blake3_self: { type: string, description: hex }
+            blake3_parent: { type: string, nullable: true }
+            approvals:
+              type: array
+              items:
+                type: object
+                properties:
+                  approver_subject: { type: string }
+                  approved_at: { type: string, format: date-time }
+
+    WorkflowDefinition:
+      type: object
+      description: |
+        Objet conforme au JSON Schema analytics.faso/v1
+        (schemas/workflow-v1.json — cf. ADR-002).
+
+    CreateWorkflowRequest:
+      type: object
+      required: [definition]
+      properties:
+        definition: { $ref: "#/components/schemas/WorkflowDefinition" }
+
+    SimulationRequest:
+      type: object
+      required: [sample_strategy, sample_size]
+      properties:
+        sample_strategy: { type: string, enum: [RANDOM, STRATIFIED, FIRST_N, LAST_N, PERIOD, GOLDEN] }
+        sample_size: { type: integer, minimum: 1, maximum: 10000 }
+        sample_seed: { type: integer, nullable: true }
+        golden_id: { type: string, format: uuid, nullable: true, description: "Requis si strategy=GOLDEN" }
+
+    Simulation:
+      type: object
+      properties:
+        simulation_id: { type: string, format: uuid }
+        version_id: { type: string, format: uuid }
+        status: { type: string, enum: [QUEUED, RUNNING, SUCCEEDED, FAILED, TIMEOUT] }
+        started_at: { type: string, format: date-time, nullable: true }
+        finished_at: { type: string, format: date-time, nullable: true }
+        duration_ms: { type: integer, nullable: true }
+        result_uri: { type: string, nullable: true }
+        diff_vs_previous: { $ref: "#/components/schemas/DiffReport" }
+        error_payload: { type: object, nullable: true }
+
+    DiffReport:
+      type: object
+      properties:
+        vs_version: { type: string }
+        kpis:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              previous: { type: number }
+              current: { type: number }
+              delta_abs: { type: number }
+              delta_pct: { type: number }
+              threshold: { type: number }
+              within_threshold: { type: boolean }
+        visualizations:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              structural_change: { type: boolean }
+              series_added: { type: array, items: { type: string } }
+              series_removed: { type: array, items: { type: string } }
+              sample_data_hash_prev: { type: string }
+              sample_data_hash_curr: { type: string }
+        schema_drift: { $ref: "#/components/schemas/SchemaDriftReport" }
+
+    SchemaDriftReport:
+      type: object
+      properties:
+        new_fields: { type: array, items: { type: string } }
+        removed_fields: { type: array, items: { type: string } }
+        renamed_fields:
+          type: array
+          items:
+            type: object
+            properties:
+              from: { type: string }
+              to: { type: string }
+              score: { type: number }
+        type_changes:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              from_type: { type: string }
+              to_type: { type: string }
+
+    Deployment:
+      type: object
+      properties:
+        deployment_id: { type: string, format: uuid }
+        version_id: { type: string, format: uuid }
+        strategy: { type: string }
+        started_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time, nullable: true }
+        rolled_back_at: { type: string, format: date-time, nullable: true }
+        rollback_reason: { type: string, nullable: true }
+        shadow_ends_at: { type: string, format: date-time, nullable: true }
+
+    PageOfAuditEntry:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AuditEntry" }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer }
+
+    AuditEntry:
+      type: object
+      properties:
+        audit_id: { type: string, format: uuid }
+        workflow_id: { type: string, format: uuid }
+        version_id: { type: string, format: uuid, nullable: true }
+        actor_subject: { type: string }
+        action: { type: string }
+        payload: { type: object }
+        blake3_self: { type: string, description: hex }
+        blake3_parent: { type: string, nullable: true }
+        key_version: { type: string }
+        occurred_at: { type: string, format: date-time }
+
+    Connector:
+      type: object
+      required: [name, kind, vault_path, sub_project]
+      properties:
+        connector_id: { type: string, format: uuid, readOnly: true }
+        sub_project: { type: string }
+        name: { type: string }
+        kind: { type: string, enum: [yugabyte, kobo, surveymonkey, dragonfly, redpanda, metabase, upload] }
+        vault_path: { type: string, description: "secret/data/analytics/connectors/<subProject>/<id>" }
+        config: { type: object, default: {} }
+        rotated_at: { type: string, format: date-time, nullable: true }

@@ -1,0 +1,29 @@
+# Multi-stage rootless distroless build for analytics-engine (Rust)
+# Cohérent ADR-001 + invariante plateforme stub-free + UID 65532 nonroot
+
+# ---------- Stage 1: build ----------
+FROM docker.io/library/rust:1.83-slim AS builder
+
+WORKDIR /build
+
+# Pre-copy manifests for layer caching
+COPY Cargo.toml ./
+COPY src ./src
+# COPY build.rs ./
+# COPY ../../proto /proto
+
+RUN cargo build --release --locked
+
+# ---------- Stage 2: runtime distroless ----------
+FROM gcr.io/distroless/cc-debian12:nonroot
+
+WORKDIR /opt/analytics-engine
+
+COPY --from=builder --chown=nonroot:nonroot \
+     /build/target/release/analytics-engine /opt/analytics-engine/analytics-engine
+
+EXPOSE 50051
+
+USER 65532:65532
+
+ENTRYPOINT ["/opt/analytics-engine/analytics-engine"]

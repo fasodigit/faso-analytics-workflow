@@ -1,0 +1,60 @@
+[package]
+name = "analytics-engine"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.83"
+description = "FASO-ANALYTICS-WORKFLOW execution engine (DataFusion + Arrow + Tonic gRPC)"
+license = "Apache-2.0"
+
+[[bin]]
+name = "analytics-engine"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.41", features = ["full"] }
+
+# DataFusion + Arrow (ADR-001)
+datafusion = "43"
+arrow = "53"
+arrow-flight = "53"
+
+# gRPC server (Tonic)
+tonic = { version = "0.12", features = ["tls"] }
+prost = "0.13"
+
+# Tracing & metrics
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+opentelemetry = "0.27"
+opentelemetry-otlp = "0.27"
+
+# Validation JSON Schema
+jsonschema = "0.26"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_jcs = "0.1"
+
+# BLAKE3 (ADR-005)
+blake3 = "1.5"
+
+# DB clients
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "tls-rustls", "uuid", "chrono", "json"] }
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+
+# Errors
+thiserror = "2"
+anyhow = "1"
+
+[build-dependencies]
+tonic-build = "0.12"
+
+[dev-dependencies]
+proptest = "1.6"
+tokio-test = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = "symbols"

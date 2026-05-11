@@ -1,0 +1,43 @@
+# Java / Maven
+target/
+*.class
+.mvn/wrapper/maven-wrapper.jar
+*.log
+
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+.cache/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local
+.env
+.env.local
+
+# Generated
+proto/v1/_gen/
+schemas/_gen/
+
+# Container
+.podman/
+.docker/
+
+# Test reports
+coverage/
+mochawesome-report/
+playwright-report/
+test-results/

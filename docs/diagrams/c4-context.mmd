@@ -1,0 +1,37 @@
+%%{init: {'theme':'neutral'}}%%
+graph TB
+    classDef person fill:#08427B,stroke:#073B6F,color:#fff
+    classDef system fill:#1168BD,stroke:#0B4884,color:#fff
+    classDef external fill:#999,stroke:#666,color:#fff
+
+    User["Utilisateur métier<br/>(analyste, superviseur)"]:::person
+
+    System["<b>FASO-ANALYTICS-WORKFLOW</b><br/>Module transversal<br/>workflows analytiques versionnés<br/>+ simulables + déployables"]:::system
+
+    Gateway["ARMAGEDDON Gateway<br/>(Rust / Pingora)<br/>mTLS SPIFFE"]:::system
+    KAYA["KAYA<br/>(sessions in-memory)"]:::system
+    Keto["Ory Keto<br/>(autorisations)"]:::system
+    Vault["HashiCorp Vault<br/>(secrets, transit)"]:::system
+    Yugabyte["YugabyteDB<br/>(persistance workflows)"]:::system
+    Dragonfly["DragonflyDB<br/>(cache TTL, samples)"]:::system
+    Redpanda["Redpanda<br/>(CDC, audit stream)"]:::system
+
+    Kobo["KoBoToolbox<br/>(KF.agriculture.bf)"]:::external
+    SM["SurveyMonkey API"]:::external
+    Metabase["Metabase API"]:::external
+    Upload["Uploads CSV/XLSX<br/>(MinIO)"]:::external
+
+    User -->|HTTPS HTTP/3 QUIC| Gateway
+    Gateway -->|mTLS| System
+    KAYA -.session.-> Gateway
+
+    System -->|reads schemas| Kobo
+    System -->|reads schemas| SM
+    System -->|reads dashboards| Metabase
+    System -->|reads| Upload
+
+    System -->|R/W| Yugabyte
+    System -->|cache| Dragonfly
+    System -->|events| Redpanda
+    System -->|secrets| Vault
+    System -->|authz| Keto

@@ -1,0 +1,32 @@
+# Multi-stage distroless rootless build for analytics-api (Java 21)
+# Java 21 + ZGC + Virtual Threads + Netty event loops dimensionnés Little's Law
+
+# ---------- Stage 1: build ----------
+FROM docker.io/library/maven:3.9-eclipse-temurin-21 AS builder
+
+WORKDIR /build
+COPY pom.xml ./
+RUN mvn -B -q dependency:go-offline
+
+COPY src ./src
+RUN mvn -B -q package -DskipTests
+
+# ---------- Stage 2: runtime distroless ----------
+FROM gcr.io/distroless/java21-debian12:nonroot
+
+WORKDIR /opt/analytics-api
+
+COPY --from=builder --chown=nonroot:nonroot \
+     /build/target/analytics-api-*.jar /opt/analytics-api/analytics-api.jar
+
+EXPOSE 8080
+
+USER 65532:65532
+
+ENTRYPOINT ["java", \
+            "-XX:+UseZGC", \
+            "-XX:+ZGenerational", \
+            "--enable-preview", \
+            "-Djava.security.egd=file:/dev/./urandom", \
+            "-jar", \
+            "/opt/analytics-api/analytics-api.jar"]

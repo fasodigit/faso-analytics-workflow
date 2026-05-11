@@ -1,0 +1,190 @@
+# FASO-ANALYTICS-WORKFLOW — local dev stack (Podman rootless)
+# Tous les containers : distroless, rootless UID 65532, multi-stage, stub-free
+name: faso_analytics
+
+x-spring-base: &spring-base
+  env_file: ../.env
+  restart: unless-stopped
+
+services:
+  # ============================================================================
+  # Dépendances locales (dev only — en prod : Yugabyte/Dragonfly/Redpanda/Vault/Keto
+  # sont mutualisés avec ARMAGEDDON et faso-mem)
+  # ============================================================================
+  yugabyte:
+    image: docker.io/yugabytedb/yugabyte:2.21.1.0-b271
+    command: bin/yugabyted start --daemon=false
+    ports:
+      - "5433:5433"   # YSQL (Postgres wire)
+      - "7000:7000"   # master UI
+      - "9000:9000"   # tserver UI
+    volumes:
+      - yb_data:/home/yugabyte/var
+    healthcheck:
+      test: ["CMD-SHELL", "ysqlsh -h localhost -p 5433 -c 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.27.0
+    command:
+      - --logtostderr
+      - --cache_mode
+      - --proactor_threads=2
+    ports:
+      - "6380:6379"   # 6380 host pour éviter conflit kobo-EAU
+    volumes:
+      - dragonfly_data:/data
+    ulimits:
+      memlock: -1
+    restart: unless-stopped
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.3.1
+    command:
+      - redpanda
+      - start
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19093
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19093
+      - --pandaproxy-addr=internal://0.0.0.0:8082,external://0.0.0.0:18083
+      - --advertise-pandaproxy-addr=internal://redpanda:8082,external://localhost:18083
+      - --schema-registry-addr=internal://0.0.0.0:8081,external://0.0.0.0:18082
+      - --rpc-addr=redpanda:33145
+      - --advertise-rpc-addr=redpanda:33145
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --node-id=0
+      - --check=false
+    ports:
+      - "19093:19093"  # Kafka external
+      - "18083:18083"  # pandaproxy
+      - "18082:18082"  # schema-registry
+    volumes:
+      - rp_data:/var/lib/redpanda/data
+    restart: unless-stopped
+
+  vault:
+    image: docker.io/hashicorp/vault:1.18
+    command: server -dev -dev-root-token-id=root -dev-listen-address=0.0.0.0:8200
+    cap_add: [IPC_LOCK]
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: root
+      VAULT_ADDR: http://0.0.0.0:8200
+    ports:
+      - "8201:8200"  # 8201 host pour éviter conflit
+    restart: unless-stopped
+
+  keto:
+    image: docker.io/oryd/keto:v0.12.0
+    command: serve all -c /etc/keto/keto.yaml
+    volumes:
+      - ../infra/keto:/etc/keto:ro
+    ports:
+      - "4466:4466"  # read API
+      - "4467:4467"  # write API
+    restart: unless-stopped
+
+  # ============================================================================
+  # 6 containers FASO-ANALYTICS-WORKFLOW
+  # ============================================================================
+  analytics-api:
+    <<: *spring-base
+    build:
+      context: ../services/analytics-api
+      dockerfile: Containerfile
+    depends_on:
+      yugabyte: { condition: service_healthy }
+      dragonfly: { condition: service_started }
+      redpanda: { condition: service_started }
+      vault: { condition: service_started }
+      keto: { condition: service_started }
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://yugabyte:5433/yugabyte
+      SPRING_DATASOURCE_USERNAME: yugabyte
+      SPRING_DATASOURCE_PASSWORD: yugabyte
+      SPRING_DATA_REDIS_URL: redis://dragonfly:6379
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      VAULT_URL: http://vault:8200
+      VAULT_TOKEN: root
+      KETO_READ_URL: http://keto:4466
+      KETO_WRITE_URL: http://keto:4467
+      JAVA_TOOL_OPTIONS: >-
+        -XX:+UseZGC -XX:+ZGenerational
+        --enable-preview
+        -Djava.security.egd=file:/dev/./urandom
+    ports:
+      - "9001:8080"
+
+  analytics-engine:
+    build:
+      context: ../services/analytics-engine
+      dockerfile: Containerfile
+    depends_on:
+      yugabyte: { condition: service_healthy }
+    environment:
+      RUST_LOG: info
+      ENGINE_GRPC_ADDR: 0.0.0.0:50051
+    ports:
+      - "9051:50051"
+    restart: unless-stopped
+
+  analytics-simulator:
+    build:
+      context: ../services/analytics-simulator
+      dockerfile: Containerfile
+    depends_on:
+      yugabyte: { condition: service_healthy }
+      dragonfly: { condition: service_started }
+    privileged: true   # Podman-in-Podman pour lancer sandbox éphémères
+    volumes:
+      - /var/run/podman:/var/run/podman
+    environment:
+      RUST_LOG: info
+      SIMULATOR_GRPC_ADDR: 0.0.0.0:50052
+      SANDBOX_IMAGE: faso/analytics-sandbox:1.0
+      SECCOMP_PROFILE: /etc/faso/seccomp/analytics-sandbox.json
+      APPARMOR_PROFILE: faso-analytics-sandbox
+    ports:
+      - "9052:50052"
+    restart: unless-stopped
+
+  analytics-scheduler:
+    <<: *spring-base
+    build:
+      context: ../services/analytics-scheduler
+      dockerfile: Containerfile
+    depends_on:
+      analytics-api: { condition: service_started }
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://yugabyte:5433/yugabyte
+      QUARTZ_JDBC_STORE: true
+      ANALYTICS_API_URL: http://analytics-api:8080
+
+  analytics-cdc-consumer:
+    <<: *spring-base
+    build:
+      context: ../services/analytics-cdc-consumer
+      dockerfile: Containerfile
+    depends_on:
+      redpanda: { condition: service_started }
+      analytics-api: { condition: service_started }
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      ANALYTICS_API_URL: http://analytics-api:8080
+
+  analytics-frontend:
+    build:
+      context: ../services/analytics-frontend
+      dockerfile: Containerfile
+    depends_on:
+      analytics-api: { condition: service_started }
+    ports:
+      - "9000:80"
+
+volumes:
+  yb_data:
+  dragonfly_data:
+  rp_data:

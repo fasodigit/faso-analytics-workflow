@@ -1,0 +1,579 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schemas.faso-digitalisation.bf/analytics/workflow/v1.0.json",
+  "title": "FASO Analytics Workflow",
+  "description": "Workflow analytique versionné et simulable. Cohérent avec ADR-002.",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "analytics.faso/v1" },
+    "kind":       { "const": "AnalyticsWorkflow" },
+
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "subProject", "semver"],
+      "properties": {
+        "name":       { "type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$",
+                        "description": "Identifiant kebab-case stable" },
+        "subProject": { "enum": ["VOUCHERS","E_TICKET","ETAT_CIVIL","SOGESY",
+                                 "HOSPITAL","FASO_KALAN","ALT_MISSION","E_SCHOOL"] },
+        "semver":     { "type": "string",
+                        "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-z0-9.-]+)?$",
+                        "description": "SemVer contraint cf. ADR-006" },
+        "labels":     { "type": "object", "additionalProperties": { "type": "string" },
+                        "description": "K/V libres (max 16 entrées)",
+                        "maxProperties": 16 },
+        "isCritical": { "type": "boolean", "default": false,
+                        "description": "Si true, déploiement 4-eyes obligatoire et shadow imposé" },
+        "owner":      { "type": "string", "description": "Kratos identity subject" },
+        "description":{ "type": "string", "maxLength": 1024 }
+      }
+    },
+
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "pipeline", "kpis", "visualizations", "outputs"],
+      "properties": {
+        "source":         { "$ref": "#/definitions/Source" },
+        "pipeline":       { "type": "array", "minItems": 0, "maxItems": 64,
+                            "items": { "$ref": "#/definitions/Transform" } },
+        "kpis":           { "type": "array", "minItems": 0, "maxItems": 32,
+                            "items": { "$ref": "#/definitions/Kpi" } },
+        "visualizations": { "type": "array", "minItems": 0, "maxItems": 32,
+                            "items": { "$ref": "#/definitions/Visualization" } },
+        "outputs":        { "type": "array", "minItems": 0, "maxItems": 8,
+                            "items": { "$ref": "#/definitions/Output" } },
+        "driftPolicy":    { "$ref": "#/definitions/DriftPolicy" }
+      }
+    }
+  },
+
+  "definitions": {
+
+    "DriftPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "onNewField":     { "enum": ["IGNORE","REQUIRE_MAPPING","BLOCK"],
+                            "default": "REQUIRE_MAPPING" },
+        "onRemovedField": { "enum": ["WARN","BLOCK"], "default": "BLOCK" },
+        "onTypeChange":   { "enum": ["AUTOCAST","REQUIRE_CAST","BLOCK"], "default": "REQUIRE_CAST" },
+        "onRenamed":      { "enum": ["AUTO_BY_SIMILARITY","SUGGEST","BLOCK"], "default": "SUGGEST" },
+        "similarityThreshold": { "type": "number", "minimum": 0.0, "maximum": 1.0, "default": 0.85 }
+      }
+    },
+
+    "Source": {
+      "oneOf": [
+        { "$ref": "#/definitions/SourceYugabyte" },
+        { "$ref": "#/definitions/SourceKobo" },
+        { "$ref": "#/definitions/SourceSurveyMonkey" },
+        { "$ref": "#/definitions/SourceDragonfly" },
+        { "$ref": "#/definitions/SourceRedpanda" },
+        { "$ref": "#/definitions/SourceMetabase" },
+        { "$ref": "#/definitions/SourceUpload" }
+      ]
+    },
+
+    "SourceYugabyte": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "schema", "table"],
+      "properties": {
+        "type":       { "const": "yugabyte" },
+        "connectionRef": { "type": "string", "description": "Vault path: secret/data/analytics/connectors/<subProject>/<id>" },
+        "schema":     { "type": "string" },
+        "table":      { "type": "string" },
+        "sqlPredicate": { "type": "string", "description": "WHERE clause additionnelle, vérifiée pour interdire ; et --" }
+      }
+    },
+
+    "SourceKobo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "assetUid"],
+      "properties": {
+        "type":         { "const": "kobo" },
+        "connectionRef":{ "type": "string" },
+        "assetUid":     { "type": "string", "pattern": "^[A-Za-z0-9]{22}$" },
+        "validatedOnly":{ "type": "boolean", "default": true }
+      }
+    },
+
+    "SourceSurveyMonkey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "surveyId"],
+      "properties": {
+        "type":         { "const": "surveymonkey" },
+        "connectionRef":{ "type": "string" },
+        "surveyId":     { "type": "string" }
+      }
+    },
+
+    "SourceDragonfly": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "keyPattern"],
+      "properties": {
+        "type":         { "const": "dragonfly" },
+        "connectionRef":{ "type": "string" },
+        "keyPattern":   { "type": "string", "description": "Avec hash-tag par agrégat business" }
+      }
+    },
+
+    "SourceRedpanda": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "topic", "consumerGroup"],
+      "properties": {
+        "type":           { "const": "redpanda" },
+        "connectionRef":  { "type": "string" },
+        "topic":          { "type": "string" },
+        "consumerGroup":  { "type": "string" },
+        "fromBeginning":  { "type": "boolean", "default": false }
+      }
+    },
+
+    "SourceMetabase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "cardId"],
+      "properties": {
+        "type":         { "const": "metabase" },
+        "connectionRef":{ "type": "string" },
+        "cardId":       { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "SourceUpload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "format"],
+      "properties": {
+        "type":      { "const": "upload" },
+        "format":    { "enum": ["CSV","XLSX","PARQUET","JSONL"] },
+        "objectKey": { "type": "string", "description": "Clé MinIO/S3 sur le bucket faso-analytics-uploads" }
+      }
+    },
+
+    "Transform": {
+      "oneOf": [
+        { "$ref": "#/definitions/TransformFilter" },
+        { "$ref": "#/definitions/TransformJoin" },
+        { "$ref": "#/definitions/TransformAggregate" },
+        { "$ref": "#/definitions/TransformGroupBy" },
+        { "$ref": "#/definitions/TransformPivot" },
+        { "$ref": "#/definitions/TransformComputed" },
+        { "$ref": "#/definitions/TransformWindow" },
+        { "$ref": "#/definitions/TransformOutlier" },
+        { "$ref": "#/definitions/TransformNormalize" },
+        { "$ref": "#/definitions/TransformRecode" }
+      ]
+    },
+
+    "TransformFilter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "expression"],
+      "properties": {
+        "id":         { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,63}$" },
+        "kind":       { "const": "filter" },
+        "label":      { "type": "string" },
+        "expression": { "type": "string", "description": "Expression DataFusion SQL WHERE valide" }
+      }
+    },
+
+    "TransformJoin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "right", "on", "joinType"],
+      "properties": {
+        "id":       { "type": "string" },
+        "kind":     { "const": "join" },
+        "label":    { "type": "string" },
+        "right":    { "type": "string", "description": "step id ou source ref" },
+        "on":       { "type": "array", "minItems": 1,
+                      "items": { "type": "object", "required": ["left","right"],
+                                 "properties": { "left": { "type": "string" }, "right": { "type": "string" } } } },
+        "joinType": { "enum": ["INNER","LEFT","RIGHT","FULL_OUTER","SEMI","ANTI"] }
+      }
+    },
+
+    "TransformAggregate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "aggregations"],
+      "properties": {
+        "id":           { "type": "string" },
+        "kind":         { "const": "aggregate" },
+        "label":        { "type": "string" },
+        "groupBy":      { "type": "array", "items": { "type": "string" }, "default": [] },
+        "aggregations": { "type": "array", "minItems": 1,
+                          "items": { "type": "object", "required": ["alias","function","field"],
+                                     "properties": {
+                                       "alias":    { "type": "string" },
+                                       "function": { "enum": ["SUM","AVG","COUNT","COUNT_DISTINCT","MIN","MAX","MEDIAN","STDDEV","PERCENTILE_50","PERCENTILE_75","PERCENTILE_90","PERCENTILE_95","PERCENTILE_99"] },
+                                       "field":    { "type": "string" }
+                                     } } }
+      }
+    },
+
+    "TransformGroupBy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "fields"],
+      "properties": {
+        "id":     { "type": "string" },
+        "kind":   { "const": "group_by" },
+        "label":  { "type": "string" },
+        "fields": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+      }
+    },
+
+    "TransformPivot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "rowFields", "columnField", "valueField", "aggregation"],
+      "properties": {
+        "id":          { "type": "string" },
+        "kind":        { "const": "pivot" },
+        "label":       { "type": "string" },
+        "rowFields":   { "type": "array", "items": { "type": "string" } },
+        "columnField": { "type": "string" },
+        "valueField":  { "type": "string" },
+        "aggregation": { "enum": ["SUM","AVG","COUNT","MIN","MAX"] }
+      }
+    },
+
+    "TransformComputed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "alias", "expression"],
+      "properties": {
+        "id":         { "type": "string" },
+        "kind":       { "const": "computed" },
+        "label":      { "type": "string" },
+        "alias":      { "type": "string" },
+        "expression": { "type": "string", "description": "Expression DataFusion (SQL CASE WHEN, ARITH, etc.)" },
+        "type":       { "enum": ["INTEGER","BIGINT","DOUBLE","DECIMAL","STRING","BOOL","DATE","TIMESTAMP"] }
+      }
+    },
+
+    "TransformWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "alias", "function", "partitionBy"],
+      "properties": {
+        "id":           { "type": "string" },
+        "kind":         { "const": "window" },
+        "label":        { "type": "string" },
+        "alias":        { "type": "string" },
+        "function":     { "enum": ["ROW_NUMBER","RANK","DENSE_RANK","LAG","LEAD","FIRST_VALUE","LAST_VALUE","NTILE","CUME_DIST"] },
+        "partitionBy":  { "type": "array", "items": { "type": "string" } },
+        "orderBy":      { "type": "array",
+                          "items": { "type": "object", "required": ["field","direction"],
+                                     "properties": { "field": { "type": "string" },
+                                                     "direction": { "enum": ["ASC","DESC"] } } } },
+        "frame":        { "type": "object", "additionalProperties": false,
+                          "properties": {
+                            "kind":  { "enum": ["ROWS","RANGE"] },
+                            "start": { "type": "string" },
+                            "end":   { "type": "string" }
+                          } }
+      }
+    },
+
+    "TransformOutlier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "field", "strategy"],
+      "properties": {
+        "id":         { "type": "string" },
+        "kind":       { "const": "outlier" },
+        "label":      { "type": "string" },
+        "field":      { "type": "string" },
+        "strategy":   { "enum": ["THREE_SIGMA","IQR","XLSFORM_CONSTRAINT","HARD_BOUNDS"] },
+        "lowerBound": { "type": ["number","null"] },
+        "upperBound": { "type": ["number","null"] },
+        "action":     { "enum": ["FLAG","DROP","CLAMP"], "default": "FLAG" }
+      }
+    },
+
+    "TransformNormalize": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "field", "method"],
+      "properties": {
+        "id":      { "type": "string" },
+        "kind":    { "const": "normalize" },
+        "label":   { "type": "string" },
+        "field":   { "type": "string" },
+        "method":  { "enum": ["ZSCORE","MIN_MAX","RANK","LOG"] }
+      }
+    },
+
+    "TransformRecode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "field", "alias", "mapping"],
+      "properties": {
+        "id":      { "type": "string" },
+        "kind":    { "const": "recode" },
+        "label":   { "type": "string" },
+        "field":   { "type": "string" },
+        "alias":   { "type": "string" },
+        "mapping": { "type": "object", "additionalProperties": { "type": ["string","number","null"] } },
+        "default": { "type": ["string","number","null"] }
+      }
+    },
+
+    "Kpi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "expression", "format"],
+      "properties": {
+        "id":         { "type": "string", "pattern": "^kpi_[a-z0-9_]{2,63}$" },
+        "label":      { "type": "string" },
+        "description":{ "type": "string" },
+        "expression": { "type": "string", "description": "DataFusion expression, valeur scalaire OU agrégée" },
+        "format":     { "$ref": "#/definitions/NumberFormat" },
+        "polarity":   { "enum": ["more_better","less_better","neutral"], "default": "more_better" },
+        "target":     { "type": "object", "additionalProperties": false,
+                        "properties": {
+                          "source":  { "enum": ["literal","cible_form","computed"] },
+                          "value":   { "type": ["number","string"] },
+                          "formId":  { "type": "string" }
+                        } },
+        "thresholds": { "type": "object", "additionalProperties": false,
+                        "properties": {
+                          "warningPct":  { "type": "number" },
+                          "criticalPct": { "type": "number" }
+                        } },
+        "critical":   { "type": "boolean", "default": false,
+                        "description": "Si true → shadow obligatoire et 4-eyes (cf. Q10)" }
+      }
+    },
+
+    "NumberFormat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pattern"],
+      "properties": {
+        "pattern":   { "type": "string", "description": "ex: #,##0 · 0.0% · FCFA #,##0" },
+        "unit":      { "type": "string" },
+        "decimals":  { "type": "integer", "minimum": 0, "maximum": 6 },
+        "locale":    { "type": "string", "default": "fr-BF" }
+      }
+    },
+
+    "Visualization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "encoding"],
+      "properties": {
+        "id":   { "type": "string", "pattern": "^viz_[a-z0-9_]{2,63}$" },
+        "type": { "enum": [
+          "BAR_VERTICAL","BAR_HORIZONTAL","BAR_STACKED","BAR_GROUPED","BAR_100PCT",
+          "PIE","DONUT","HALF_DONUT",
+          "LINE","LINE_MULTI","AREA","AREA_STACKED",
+          "COMBO_DUAL_AXIS",
+          "SCATTER","BUBBLE",
+          "HEATMAP",
+          "CHOROPLETH_BF",
+          "GAUGE_SEMI",
+          "KPI_TILE","SPARKLINE",
+          "PIVOT_TABLE"
+        ]},
+        "title":    { "type": "string" },
+        "subtitle": { "type": "string" },
+        "encoding": { "$ref": "#/definitions/Encoding" },
+        "style":    { "$ref": "#/definitions/Style" },
+        "i18n":     { "type": "object", "additionalProperties": { "type": "string" } }
+      },
+      "allOf": [
+        {
+          "if":   { "properties": { "type": { "const": "COMBO_DUAL_AXIS" } } },
+          "then": { "required": ["encoding"],
+                    "properties": { "encoding": {
+                       "required": ["xField","leftAxis","rightAxis"],
+                       "properties": {
+                         "leftAxis":  { "$ref": "#/definitions/AxisSpec" },
+                         "rightAxis": { "$ref": "#/definitions/AxisSpec" }
+                       }}}}
+        },
+        {
+          "if":   { "properties": { "type": { "const": "HALF_DONUT" } } },
+          "then": { "required": ["encoding"],
+                    "properties": { "encoding": {
+                       "required": ["category","value"]
+                    }}}
+        },
+        {
+          "if":   { "properties": { "type": { "const": "CHOROPLETH_BF" } } },
+          "then": { "required": ["encoding"],
+                    "properties": { "encoding": {
+                       "required": ["regionField","valueField"],
+                       "properties": {
+                         "level": { "enum": ["region","province","commune"], "default": "region" }
+                       }
+                    }}}
+        }
+      ]
+    },
+
+    "Encoding": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "xField":     { "type": "string" },
+        "yField":     { "type": "string" },
+        "category":   { "type": "string" },
+        "value":      { "type": "string" },
+        "color":      { "type": "string" },
+        "size":       { "type": "string" },
+        "series":     { "type": "string" },
+        "regionField":{ "type": "string" },
+        "valueField": { "type": "string" },
+        "level":      { "enum": ["region","province","commune"] },
+        "leftAxis":   { "$ref": "#/definitions/AxisSpec" },
+        "rightAxis":  { "$ref": "#/definitions/AxisSpec" }
+      }
+    },
+
+    "AxisSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seriesType","field","aggregation"],
+      "properties": {
+        "seriesType":  { "enum": ["BAR","LINE","AREA"] },
+        "field":       { "type": "string" },
+        "aggregation": { "enum": ["SUM","AVG","COUNT","MIN","MAX","MEDIAN"] },
+        "label":       { "type": "string" },
+        "min":         { "type": ["number","null"] },
+        "max":         { "type": ["number","null"] },
+        "scale":       { "enum": ["LINEAR","LOG"], "default": "LINEAR" },
+        "format":      { "$ref": "#/definitions/NumberFormat" }
+      }
+    },
+
+    "Style": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "palette":    { "enum": ["faso_default","sequential_blue","sequential_green","diverging_rdylgn","categorical_set1"],
+                        "default": "faso_default" },
+        "showLegend": { "type": "boolean", "default": true },
+        "showGrid":   { "type": "boolean", "default": true },
+        "showLabels": { "type": "boolean", "default": false },
+        "stacked":    { "type": "boolean", "default": false }
+      }
+    },
+
+    "Output": {
+      "oneOf": [
+        { "$ref": "#/definitions/OutputDashboard" },
+        { "$ref": "#/definitions/OutputPdf" },
+        { "$ref": "#/definitions/OutputExcel" },
+        { "$ref": "#/definitions/OutputPptx" },
+        { "$ref": "#/definitions/OutputMetabase" },
+        { "$ref": "#/definitions/OutputWebhook" },
+        { "$ref": "#/definitions/OutputEmail" }
+      ]
+    },
+
+    "OutputDashboard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind","dashboardCode"],
+      "properties": {
+        "kind":          { "const": "dashboard" },
+        "dashboardCode": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,63}$" },
+        "refreshSec":    { "type": "integer", "minimum": 60, "default": 300 }
+      }
+    },
+
+    "OutputPdf": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind","template"],
+      "properties": {
+        "kind":     { "const": "pdf" },
+        "template": { "type": "string", "description": "Nom du template Typst" },
+        "schedule": { "$ref": "#/definitions/Schedule" },
+        "deliverTo":{ "type": "array", "items": { "type": "string", "format": "email" } }
+      }
+    },
+
+    "OutputExcel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind":     { "const": "excel" },
+        "objectKey":{ "type": "string", "description": "Clé MinIO" },
+        "schedule": { "$ref": "#/definitions/Schedule" }
+      }
+    },
+
+    "OutputPptx": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind":     { "const": "pptx" },
+        "template": { "type": "string" },
+        "schedule": { "$ref": "#/definitions/Schedule" }
+      }
+    },
+
+    "OutputMetabase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind","cardId"],
+      "properties": {
+        "kind":   { "const": "metabase" },
+        "cardId": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "OutputWebhook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind","url"],
+      "properties": {
+        "kind":         { "const": "webhook" },
+        "url":          { "type": "string", "format": "uri" },
+        "signingKeyRef":{ "type": "string", "description": "Vault path pour HMAC SHA-256" },
+        "schedule":     { "$ref": "#/definitions/Schedule" }
+      }
+    },
+
+    "OutputEmail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind","to","template"],
+      "properties": {
+        "kind":     { "const": "email" },
+        "to":       { "type": "array", "minItems": 1, "items": { "type": "string", "format": "email" } },
+        "cc":       { "type": "array", "items": { "type": "string", "format": "email" } },
+        "template": { "type": "string" },
+        "schedule": { "$ref": "#/definitions/Schedule" }
+      }
+    },
+
+    "Schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cron":     { "type": "string", "description": "Quartz cron expression" },
+        "timezone": { "type": "string", "default": "Africa/Ouagadougou" },
+        "trigger":  { "enum": ["cron","event","manual"], "default": "manual" },
+        "eventTopic": { "type": "string", "description": "Topic Redpanda si trigger=event" }
+      }
+    }
+  }
+}
