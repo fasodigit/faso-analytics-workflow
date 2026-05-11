@@ -7,10 +7,16 @@
 //
 // Phase 1 : Compile + Execute fonctionnent sur une source YugabyteDB SELECT trivial
 //           + 1 filtre + 1 agrégat SUM.
+// Phase 2 : compile.rs supporte également join/group_by/window/outlier/normalize/recode
+//           (pivot deferred pending DataFusion 44+).
+
+pub mod compile;
+pub mod error;
+pub mod service;
+pub mod transforms;
 
 use std::net::SocketAddr;
-use tonic::{transport::Server, Request, Response, Status};
-use tracing::{info, instrument};
+use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 // pub mod proto {

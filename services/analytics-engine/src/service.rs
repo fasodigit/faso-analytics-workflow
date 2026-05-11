@@ -2,12 +2,9 @@
 // Référence ADR-001.
 
 use std::sync::Arc;
-use std::pin::Pin;
 
 use datafusion::prelude::SessionContext;
 use tokio::sync::RwLock;
-use tokio_stream::Stream;
-use tonic::{Request, Response, Status};
 use tracing::{info, instrument};
 use uuid::Uuid;
 
@@ -24,6 +21,10 @@ pub mod proto {
 pub struct AnalyticsEngineService {
     ctx:      Arc<SessionContext>,
     registry: Arc<RwLock<PlanRegistry>>,
+}
+
+impl Default for AnalyticsEngineService {
+    fn default() -> Self { Self::new() }
 }
 
 impl AnalyticsEngineService {
