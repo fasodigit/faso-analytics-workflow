@@ -1,28 +1,114 @@
-<h1>FASO Analytics Workflow — Démos Phase 1</h1>
-<p class="subtitle">3 visualisations natives ECharts depuis 3 exemples canoniques (§9.3 du plan).</p>
+<h1>FASO Analytics Workflow &mdash; Démos Phase 3</h1>
+<p class="subtitle">17 visualisations natives : 3 (Phase 1) + 14 (Phase 3 — BAR/PIE/LINE/AREA/SCATTER/BUBBLE/HEATMAP/CHOROPLETH/GAUGE/KPI/SPARKLINE/PIVOT).</p>
 
-<div class="stack">
+<div class="section-header">Compteurs (KPI &amp; Sparkline)</div>
+<div class="grid-3">
   <section>
-    <h2>#03 — BAR_GROUPED — PAGSI volumes Région × Céréale</h2>
-    <app-echarts-renderer
-      [workflowDef]="barGroupedWorkflow"
-      [dataset]="barGroupedData"
-    ></app-echarts-renderer>
+    <h2>KPI_TILE — Compteur principal + sparkline</h2>
+    <app-widget-host [workflowDef]="kpiTileWorkflow" [dataset]="kpiTileData"></app-widget-host>
   </section>
-
   <section>
-    <h2>#05 — HALF_DONUT — RESUREP cas par espèce animale</h2>
-    <app-echarts-renderer
-      [workflowDef]="halfDonutWorkflow"
-      [dataset]="halfDonutData"
-    ></app-echarts-renderer>
+    <h2>SPARKLINE — 30 derniers jours</h2>
+    <app-widget-host [workflowDef]="sparklineWorkflow" [dataset]="sparklineData"></app-widget-host>
   </section>
-
   <section>
-    <h2>#06 — COMBO_DUAL_AXIS — SONAGESS stock vs prix moyen</h2>
-    <app-echarts-renderer
-      [workflowDef]="comboDualAxisWorkflow"
-      [dataset]="comboDualAxisData"
-    ></app-echarts-renderer>
+    <h2>GAUGE_SEMI — Objectif national 90 %</h2>
+    <app-widget-host [workflowDef]="gaugeSemiWorkflow" [dataset]="gaugeSemiData"></app-widget-host>
+  </section>
+</div>
+
+<div class="section-header">Distributions (PIE / DONUT / HALF_DONUT)</div>
+<div class="grid-3">
+  <section>
+    <h2>PIE — Actes par statut</h2>
+    <app-widget-host [workflowDef]="pieWorkflow" [dataset]="pieData"></app-widget-host>
+  </section>
+  <section>
+    <h2>DONUT — Actes par statut</h2>
+    <app-widget-host [workflowDef]="donutWorkflow" [dataset]="donutData"></app-widget-host>
+  </section>
+  <section>
+    <h2>#05 — HALF_DONUT — RESUREP espèces (Phase 1)</h2>
+    <app-widget-host [workflowDef]="halfDonutWorkflow" [dataset]="halfDonutData"></app-widget-host>
+  </section>
+</div>
+
+<div class="section-header">Comparaisons (BAR_*)</div>
+<div class="grid-2">
+  <section>
+    <h2>BAR_VERTICAL — Superficie aménagée par région</h2>
+    <app-widget-host [workflowDef]="barVerticalWorkflow" [dataset]="barVerticalData"></app-widget-host>
+  </section>
+  <section>
+    <h2>BAR_HORIZONTAL — Top 10 communes</h2>
+    <app-widget-host [workflowDef]="barHorizontalWorkflow" [dataset]="barHorizontalData"></app-widget-host>
+  </section>
+  <section>
+    <h2>#03 — BAR_GROUPED — Région × Céréale (Phase 1)</h2>
+    <app-widget-host [workflowDef]="barGroupedWorkflow" [dataset]="barGroupedData"></app-widget-host>
+  </section>
+  <section>
+    <h2>BAR_STACKED — Effectifs par espèce</h2>
+    <app-widget-host [workflowDef]="barStackedWorkflow" [dataset]="barStackedData"></app-widget-host>
+  </section>
+  <section>
+    <h2>BAR_100PCT — Maladies % par région</h2>
+    <app-widget-host [workflowDef]="bar100PctWorkflow" [dataset]="bar100PctData"></app-widget-host>
+  </section>
+</div>
+
+<div class="section-header">Cible vs réalisé / Temporel (LINE / AREA / COMBO)</div>
+<div class="grid-2">
+  <section>
+    <h2>LINE — Admissions HOSPITAL mensuelles</h2>
+    <app-widget-host [workflowDef]="lineWorkflow" [dataset]="lineData"></app-widget-host>
+  </section>
+  <section>
+    <h2>LINE_MULTI — 13 régions sur 12 mois</h2>
+    <app-widget-host [workflowDef]="lineMultiWorkflow" [dataset]="lineMultiData"></app-widget-host>
+  </section>
+  <section>
+    <h2>AREA — Cumul des vaccinations</h2>
+    <app-widget-host [workflowDef]="areaWorkflow" [dataset]="areaData"></app-widget-host>
+  </section>
+  <section>
+    <h2>AREA_STACKED — Cumul vaccinations par maladie</h2>
+    <app-widget-host [workflowDef]="areaStackedWorkflow" [dataset]="areaStackedData"></app-widget-host>
+  </section>
+  <section>
+    <h2>#06 — COMBO_DUAL_AXIS — SONAGESS (Phase 1)</h2>
+    <app-widget-host [workflowDef]="comboDualAxisWorkflow" [dataset]="comboDualAxisData"></app-widget-host>
+  </section>
+</div>
+
+<div class="section-header">Corrélations (SCATTER / BUBBLE / HEATMAP)</div>
+<div class="grid-2">
+  <section>
+    <h2>SCATTER — Âge × Taux de couverture</h2>
+    <app-widget-host [workflowDef]="scatterWorkflow" [dataset]="scatterData"></app-widget-host>
+  </section>
+  <section>
+    <h2>BUBBLE — Région × Pop × Couverture</h2>
+    <app-widget-host [workflowDef]="bubbleWorkflow" [dataset]="bubbleData"></app-widget-host>
+  </section>
+  <section>
+    <h2>HEATMAP — Jour × Heure cas hospitaliers</h2>
+    <app-widget-host [workflowDef]="heatmapWorkflow" [dataset]="heatmapData"></app-widget-host>
+  </section>
+</div>
+
+<div class="section-header">Géographies</div>
+<div class="grid-2">
+  <section>
+    <h2>CHOROPLETH_BF — Couverture vaccinale par région (stub geoJSON)</h2>
+    <app-widget-host [workflowDef]="choroplethBfWorkflow" [dataset]="choroplethBfData"></app-widget-host>
+  </section>
+</div>
+
+<div class="section-header">Tableau croisé (PIVOT_TABLE)</div>
+<div>
+  <section>
+    <h2>PIVOT_TABLE — Région × Maladie × Espèce (ag-grid)</h2>
+    <app-widget-host [workflowDef]="pivotTableWorkflow" [dataset]="pivotTableData"></app-widget-host>
   </section>
 </div>

@@ -1,6 +1,27 @@
 <div class="chart-wrapper">
-  @if (chartOptions) {
-    <div class="chart-host" echarts [options]="chartOptions"></div>
+  @if (kpiTile) {
+    <div class="kpi-tile">
+      @if (kpiTile.title) {
+        <div class="kpi-title">{{ kpiTile.title }}</div>
+      }
+      @if (kpiTile.subtitle) {
+        <div class="kpi-subtitle">{{ kpiTile.subtitle }}</div>
+      }
+      <div class="kpi-value">{{ kpiTile.value }}</div>
+      @if (kpiTile.delta) {
+        <div class="kpi-delta"
+             [class.up]="kpiTile.trend === 'up'"
+             [class.down]="kpiTile.trend === 'down'"
+             [class.flat]="kpiTile.trend === 'flat'">
+          {{ kpiTile.delta }}
+        </div>
+      }
+      @if (sparkOptions) {
+        <div class="kpi-spark" echarts [options]="sparkOptions"></div>
+      }
+    </div>
+  } @else if (chartOptions) {
+    <div class="chart-host" [class.compact]="compactHost" echarts [options]="chartOptions"></div>
   } @else {
     <div class="chart-placeholder">{{ placeholderMessage }}</div>
   }

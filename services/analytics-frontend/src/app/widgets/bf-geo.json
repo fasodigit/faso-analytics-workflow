@@ -1,0 +1,54 @@
+{
+  "type": "FeatureCollection",
+  "name": "BF_REGIONS_STUB",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Centre", "code": "BF-CEN" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-1.7, 12.2],[-1.2, 12.2],[-1.2, 12.6],[-1.7, 12.6],[-1.7, 12.2]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Hauts-Bassins", "code": "BF-HBS" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-4.6, 11.0],[-3.7, 11.0],[-3.7, 11.9],[-4.6, 11.9],[-4.6, 11.0]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Sahel", "code": "BF-SAH" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-1.0, 13.8],[0.5, 13.8],[0.5, 15.0],[-1.0, 15.0],[-1.0, 13.8]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Nord", "code": "BF-NRD" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-2.7, 13.2],[-1.7, 13.2],[-1.7, 14.1],[-2.7, 14.1],[-2.7, 13.2]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Est", "code": "BF-EST" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[0.5, 11.5],[2.4, 11.5],[2.4, 13.5],[0.5, 13.5],[0.5, 11.5]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Boucle du Mouhoun", "code": "BF-BMH" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-4.5, 11.9],[-2.9, 11.9],[-2.9, 13.2],[-4.5, 13.2],[-4.5, 11.9]]]
+      }
+    }
+  ]
+}
