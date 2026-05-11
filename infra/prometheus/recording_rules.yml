@@ -1,0 +1,52 @@
+groups:
+  - name: analytics-recording
+    interval: 30s
+    rules:
+      - record: analytics:simulation_duration_p95_5m
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(analytics_simulation_duration_seconds_bucket[5m])
+            )
+          )
+
+      - record: analytics:simulation_duration_p99_5m
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (le) (
+              rate(analytics_simulation_duration_seconds_bucket[5m])
+            )
+          )
+
+      - record: analytics:engine_grpc_p95_5m
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (method, le) (
+              rate(grpc_server_handling_seconds_bucket{job="analytics-engine"}[5m])
+            )
+          )
+
+      - record: analytics:audit_chain_break_total
+        expr: |
+          sum(analytics_audit_chain_break_total)
+
+      - record: analytics:simulation_rps_5m
+        expr: |
+          sum by (workflow_id) (
+            rate(analytics_simulation_duration_seconds_count[5m])
+          )
+
+      - record: analytics:engine_grpc_error_rate_5m
+        expr: |
+          sum by (method) (rate(grpc_server_handled_total{job="analytics-engine",grpc_code!="OK"}[5m]))
+          /
+          clamp_min(sum by (method) (rate(grpc_server_handled_total{job="analytics-engine"}[5m])), 1)
+
+      - record: analytics:cache_hit_ratio_5m
+        expr: |
+          sum by (cache) (rate(analytics_cache_hits_total[5m]))
+          /
+          clamp_min(sum by (cache) (rate(analytics_cache_requests_total[5m])), 1)

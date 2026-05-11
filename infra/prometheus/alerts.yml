@@ -1,0 +1,88 @@
+groups:
+  - name: analytics-critical
+    interval: 30s
+    rules:
+      - alert: AnalyticsSchemaDriftDetected
+        expr: analytics_schema_drift_total > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: faso-analytics
+        annotations:
+          summary: "Drift de schéma détecté sur {{ $labels.workflow_id }}"
+          description: "Le workflow {{ $labels.workflow_id }} (sub_project={{ $labels.sub_project }}) présente un drift de schéma persistant depuis 5 min."
+          runbook: "docs/runbook/observability.md#drift-detected"
+
+      - alert: AnalyticsSimulationTimeoutHigh
+        expr: histogram_quantile(0.95, rate(analytics_simulation_duration_seconds_bucket[5m])) > 30
+        for: 15m
+        labels:
+          severity: warning
+          team: faso-analytics
+        annotations:
+          summary: "p95 simulation duration > 30s sur la fenêtre 5 min"
+          description: "Les simulations dépassent 30s en p95 depuis 15 min ; possibles causes : volumétrie, engine saturé, cache miss massif."
+          runbook: "docs/runbook/observability.md#simulation-timeout"
+
+      - alert: AnalyticsKpiThresholdBreached
+        expr: increase(analytics_kpi_threshold_breached_total{severity="critical"}[1h]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: faso-analytics
+        annotations:
+          summary: "KPI critique franchit un seuil"
+          description: "Un KPI marqué severity=critical a franchi son seuil dans la dernière heure (workflow_id={{ $labels.workflow_id }})."
+          runbook: "docs/runbook/observability.md#kpi-threshold-breached"
+
+      - alert: AnalyticsAuditChainBreak
+        expr: analytics_audit_chain_break_total > 0
+        labels:
+          severity: critical
+          team: faso-analytics
+        annotations:
+          summary: "Chaîne d'audit cassée — corruption suspectée"
+          description: "blake3_parent ne lie pas blake3_self précédent. Geler le workflow et démarrer la procédure forensique."
+          runbook: "docs/runbook/observability.md#audit-chain-break"
+
+      - alert: AnalyticsDeploymentRollbackFail
+        expr: increase(analytics_deployment_rollback_failed_total[5m]) > 0
+        labels:
+          severity: critical
+          team: faso-analytics
+        annotations:
+          summary: "Rollback BLUE/GREEN échoué"
+          description: "Health check analytics-engine post-bascule KO : le rollback automatique a échoué. Intervenir sous 60 s."
+          runbook: "docs/runbook/observability.md#deployment-rollback-fail"
+
+      - alert: AnalyticsSandboxOomHigh
+        expr: increase(analytics_sandbox_oom_killed_total[1h]) > 10
+        labels:
+          severity: critical
+          team: faso-analytics
+        annotations:
+          summary: "Plus de 10 sandboxes OOM-killed dans la dernière heure"
+          description: "Pression mémoire massive sur les sandboxes ({{ $value }} kills/h). Vérifier limites cgroup et workload."
+          runbook: "docs/runbook/observability.md#sandbox-oom"
+
+      - alert: AnalyticsVaultLeaseRenewalFail
+        expr: increase(analytics_vault_lease_renewal_failed_total[5m]) > 5
+        labels:
+          severity: warning
+          team: faso-analytics
+        annotations:
+          summary: "Vault : > 5 échecs de renouvellement de lease en 5 min"
+          description: "Le renouvellement du token AppRole échoue de manière répétée. Vérifier policies et connectivité Vault."
+          runbook: "docs/runbook/observability.md#vault-lease-renewal-fail"
+
+  - name: analytics-warning
+    interval: 30s
+    rules:
+      - alert: AnalyticsSandboxOomWarning
+        expr: increase(analytics_sandbox_oom_killed_total[1h]) > 1
+        labels:
+          severity: warning
+          team: faso-analytics
+        annotations:
+          summary: "Sandbox OOM-killed (warning) — {{ $value }} kills/h"
+          runbook: "docs/runbook/observability.md#sandbox-oom"

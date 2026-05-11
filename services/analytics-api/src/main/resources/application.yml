@@ -19,12 +19,51 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,prometheus,metrics
   endpoint:
     health:
       show-details: when_authorized
+    prometheus:
+      enabled: true
+    metrics:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+        step: 15s
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        analytics_simulation_duration_seconds: true
+      percentiles:
+        http.server.requests: 0.5, 0.95, 0.99
+    tags:
+      application: analytics-api
+  tracing:
+    enabled: true
+    sampling:
+      probability: 0.1
+  observations:
+    annotations:
+      enabled: true
+
+otel:
+  exporter:
+    otlp:
+      endpoint: http://otel-collector:4317
+      protocol: grpc
+  service:
+    name: analytics-api
+  resource:
+    attributes:
+      deployment.environment: ${ENV:dev}
+      service.namespace: faso-analytics
 
 logging:
   level:
     root: INFO
     bf.faso.analytics: DEBUG
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
