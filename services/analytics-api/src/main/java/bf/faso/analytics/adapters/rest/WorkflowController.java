@@ -2,10 +2,12 @@ package bf.faso.analytics.adapters.rest;
 
 import bf.faso.analytics.adapters.rest.dto.CreateWorkflowRequestDto;
 import bf.faso.analytics.adapters.rest.dto.PageDto;
+import bf.faso.analytics.adapters.rest.dto.SchemaDriftReportDto;
 import bf.faso.analytics.adapters.rest.dto.WorkflowDetailDto;
 import bf.faso.analytics.adapters.rest.dto.WorkflowDto;
 import bf.faso.analytics.application.CreateWorkflowCommand;
 import bf.faso.analytics.application.CreateWorkflowUseCase;
+import bf.faso.analytics.application.DetectSchemaDriftUseCase;
 import bf.faso.analytics.domain.port.WorkflowRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,11 +28,14 @@ public class WorkflowController {
 
     private final CreateWorkflowUseCase createWorkflowUseCase;
     private final WorkflowRepository workflowRepository;
+    private final DetectSchemaDriftUseCase detectSchemaDriftUseCase;
 
     public WorkflowController(CreateWorkflowUseCase createWorkflowUseCase,
-                              WorkflowRepository workflowRepository) {
+                              WorkflowRepository workflowRepository,
+                              DetectSchemaDriftUseCase detectSchemaDriftUseCase) {
         this.createWorkflowUseCase = createWorkflowUseCase;
         this.workflowRepository = workflowRepository;
+        this.detectSchemaDriftUseCase = detectSchemaDriftUseCase;
     }
 
     @PostMapping
@@ -67,5 +72,14 @@ public class WorkflowController {
                         .map(versions -> WorkflowDetailDto.from(wf, versions)))
                 .map(ResponseEntity::ok)
                 .defaultIfEmpty(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/schema-drift")
+    public Mono<ResponseEntity<SchemaDriftReportDto>> getSchemaDrift(@PathVariable("id") UUID id) {
+        return detectSchemaDriftUseCase.execute(id)
+                .map(SchemaDriftReportDto::from)
+                .map(ResponseEntity::ok)
+                .onErrorResume(DetectSchemaDriftUseCase.WorkflowNotFoundException.class,
+                        e -> Mono.just(ResponseEntity.notFound().build()));
     }
 }
