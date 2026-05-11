@@ -1,0 +1,32 @@
+# FASO-ANALYTICS-WORKFLOW — analytics-sandbox image (the workload that runs
+# INSIDE the ephemeral container described by ADR-004). Distroless, nonroot,
+# target size < 100 MB.
+
+# ---------- Stage 1: build ----------
+# Rust 1.88+ required : edition2024 + icu_* + let-chains in comfy-table.
+FROM docker.io/library/rust:1.88-slim AS builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        pkg-config libssl-dev ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+
+RUN cargo build --release --locked
+
+# ---------- Stage 2: runtime distroless ----------
+FROM gcr.io/distroless/cc-debian12:nonroot
+
+WORKDIR /opt/analytics-sandbox
+
+COPY --from=builder --chown=nonroot:nonroot \
+     /build/target/release/analytics-sandbox /usr/local/bin/analytics-sandbox
+
+# AppArmor profile faso-analytics-sandbox attaches /usr/local/bin/analytics-sandbox
+# explicitly — keep the path stable.
+USER 65532:65532
+
+ENTRYPOINT ["/usr/local/bin/analytics-sandbox"]

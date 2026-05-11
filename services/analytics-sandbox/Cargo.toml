@@ -1,0 +1,41 @@
+[package]
+name = "analytics-sandbox"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.83"
+description = "FASO-ANALYTICS-WORKFLOW sandbox binary — runs inside the ephemeral container, executes a plan on a sample, writes result to DragonflyDB"
+license = "Apache-2.0"
+
+[[bin]]
+name = "analytics-sandbox"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.41", features = ["macros", "rt-multi-thread", "signal", "time", "io-std"] }
+
+# DataFusion / Arrow — Phase 2 brings them in but only the Compile-time minimal
+# feature set, to keep the image < 100 MB.
+datafusion = { version = "43", default-features = false, features = ["regex_expressions"] }
+arrow = { version = "53", default-features = false, features = ["ipc"] }
+
+# Dragonfly client (Redis-protocol-compatible).
+redis = { version = "0.27", features = ["tokio-comp"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Errors
+thiserror = "2"
+anyhow = "1"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = "symbols"

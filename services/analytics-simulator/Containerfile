@@ -1,0 +1,33 @@
+# FASO-ANALYTICS-WORKFLOW — analytics-simulator container.
+# Mirrors the analytics-engine pattern : distroless runtime, UID 65532 nonroot.
+# NOTE : the simulator itself is rootless; the inner sandbox launches via the
+# Podman socket bind-mounted from the host (cf. podman-compose.yaml).
+
+# ---------- Stage 1: build ----------
+# Rust 1.88+ required : edition2024 + icu_* + let-chains.
+FROM docker.io/library/rust:1.88-slim AS builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        pkg-config libssl-dev ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+
+RUN cargo build --release --locked
+
+# ---------- Stage 2: runtime distroless ----------
+FROM gcr.io/distroless/cc-debian12:nonroot
+
+WORKDIR /opt/analytics-simulator
+
+COPY --from=builder --chown=nonroot:nonroot \
+     /build/target/release/analytics-simulator /opt/analytics-simulator/analytics-simulator
+
+EXPOSE 50052
+
+USER 65532:65532
+
+ENTRYPOINT ["/opt/analytics-simulator/analytics-simulator"]

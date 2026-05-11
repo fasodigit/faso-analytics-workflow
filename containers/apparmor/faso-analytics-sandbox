@@ -1,0 +1,46 @@
+# FASO-ANALYTICS-WORKFLOW — AppArmor profile for the analytics-sandbox image.
+# Reference : ADR-004 §"Profil AppArmor faso-analytics-sandbox".
+#
+# SECURITY : this profile is the second LSM layer on top of seccomp. It denies
+# every write outside /tmp + the read-only rootfs, blocks /proc/<pid>/ writes
+# (anti container-escape), and forbids any access to /home/** (defense against
+# host volume leakage).
+#
+# Loading on host :
+#   sudo install -m 0644 containers/apparmor/faso-analytics-sandbox \
+#                        /etc/apparmor.d/faso-analytics-sandbox
+#   sudo apparmor_parser -r /etc/apparmor.d/faso-analytics-sandbox
+#
+# The simulator passes --security-opt=apparmor=faso-analytics-sandbox so the
+# kernel attaches this profile at container start.
+
+#include <tunables/global>
+
+profile faso-analytics-sandbox flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # Outbound TCP — only path the sandbox needs (DragonflyDB).
+  network inet stream,
+  network inet6 stream,
+
+  # The sandbox entry point. ix = inherit + execute. Path matches the
+  # Containerfile COPY target.
+  /usr/local/bin/analytics-sandbox ix,
+
+  # Read-only rootfs is enforced via podman --read-only ; here we additionally
+  # whitelist /tmp (the tmpfs mount) for ephemeral scratch use.
+  /tmp/** rwk,
+
+  # /proc/self/ is readable for thread accounting, but writes to other PIDs
+  # are denied to block ptrace/proc-tampering escape attempts.
+  /proc/self/** r,
+  deny /proc/[0-9]*/** w,
+
+  # System areas — read-only at the LSM layer too.
+  deny /sys/** w,
+  deny /etc/** w,
+
+  # Host home directories must never be reachable — defense against a
+  # mis-mounted volume.
+  deny /home/** rwklx,
+}
