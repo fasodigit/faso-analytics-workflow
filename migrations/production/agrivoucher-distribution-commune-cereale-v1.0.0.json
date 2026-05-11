@@ -1,0 +1,109 @@
+{
+  "apiVersion": "analytics.faso/v1",
+  "kind": "AnalyticsWorkflow",
+  "metadata": {
+    "name": "agrivoucher-distribution",
+    "subProject": "VOUCHERS",
+    "semver": "1.0.0",
+    "labels": {
+      "migrated_from": "metabase:card:158",
+      "reference_dashboard": "true",
+      "thematique": "voucher-agri",
+      "sla.refresh_minutes": "30"
+    },
+    "isCritical": false,
+    "owner": "user:agrivoucher-direction@gov.bf",
+    "description": "AgriVoucher — Distribution par commune × type de céréale, campagne 2025-2026. Sous-projet VOUCHERS. Mise en évidence carte BF + barres groupées."
+  },
+  "spec": {
+    "source": {
+      "type": "yugabyte",
+      "connectionRef": "secret/data/analytics/connectors/VOUCHERS/AgriVoucher/distrib-prod-readreplica",
+      "schema": "voucher_schema",
+      "table": "distribution_agrivoucher"
+    },
+    "pipeline": [
+      {
+        "id": "filter_campagne",
+        "kind": "filter",
+        "label": "Campagne 2025-2026",
+        "expression": "campagne = '2025-2026'"
+      },
+      {
+        "id": "agg_commune_cereale",
+        "kind": "aggregate",
+        "label": "Volumes par commune × céréale",
+        "groupBy": ["commune_code", "commune", "type_cereale"],
+        "aggregations": [
+          { "alias": "volume_kg_total", "function": "SUM", "field": "volume_kg" },
+          { "alias": "nb_beneficiaires", "function": "COUNT_DISTINCT", "field": "beneficiaire_id" }
+        ]
+      },
+      {
+        "id": "computed_tonnes",
+        "kind": "computed",
+        "label": "Conversion kg → tonnes",
+        "alias": "volume_tonnes",
+        "expression": "volume_kg_total / 1000.0",
+        "type": "DOUBLE"
+      }
+    ],
+    "kpis": [
+      {
+        "id": "kpi_volume_total",
+        "label": "Volume total distribué AgriVoucher",
+        "expression": "SUM(volume_tonnes)",
+        "format": { "pattern": "#,##0.0", "unit": "t", "decimals": 1 },
+        "polarity": "more_better"
+      },
+      {
+        "id": "kpi_communes_couvertes",
+        "label": "Communes couvertes",
+        "description": "Communes distinctes ayant reçu au moins une distribution sur la campagne.",
+        "expression": "COUNT(DISTINCT commune_code)",
+        "format": { "pattern": "#,##0", "decimals": 0 },
+        "polarity": "more_better"
+      }
+    ],
+    "visualizations": [
+      {
+        "id": "viz_bar_grouped_commune_cereale",
+        "type": "BAR_GROUPED",
+        "title": "Volumes AgriVoucher par Commune × Type de céréale",
+        "subtitle": "Campagne 2025-2026 — tonnes (top communes)",
+        "encoding": {
+          "xField": "commune",
+          "yField": "volume_tonnes",
+          "series": "type_cereale"
+        },
+        "style": { "palette": "categorical_set1", "showLegend": true, "showLabels": false }
+      },
+      {
+        "id": "viz_choropleth_commune_coverage",
+        "type": "CHOROPLETH_BF",
+        "title": "Couverture AgriVoucher — carte des communes",
+        "subtitle": "Volume distribué (tonnes) par commune",
+        "encoding": {
+          "regionField": "commune_code",
+          "valueField": "volume_tonnes",
+          "level": "commune"
+        },
+        "style": { "palette": "sequential_green", "showLegend": true }
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "dashboard",
+        "dashboardCode": "agrivoucher_distribution",
+        "refreshSec": 1800
+      }
+    ],
+    "driftPolicy": {
+      "onNewField": "REQUIRE_MAPPING",
+      "onRemovedField": "BLOCK",
+      "onTypeChange": "REQUIRE_CAST",
+      "onRenamed": "SUGGEST",
+      "similarityThreshold": 0.85
+    }
+  }
+}

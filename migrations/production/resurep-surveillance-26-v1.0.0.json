@@ -1,0 +1,122 @@
+{
+  "apiVersion": "analytics.faso/v1",
+  "kind": "AnalyticsWorkflow",
+  "metadata": {
+    "name": "resurep-surveillance-26",
+    "subProject": "HOSPITAL",
+    "semver": "1.0.0",
+    "labels": {
+      "migrated_from": "surveymonkey:survey:resurep-26",
+      "reference_dashboard": "true",
+      "thematique": "sante-animale",
+      "sla.refresh_minutes": "30"
+    },
+    "isCritical": true,
+    "owner": "user:vet.bankui@dgsv.gov.bf",
+    "description": "RESUREP-26 — Réseau de surveillance épidémiologique des maladies animales prioritaires. Migration KoBo → SurveyMonkey (cf. §15 ultraplan). Cas confirmés par espèce × région, semaine épidémiologique courante."
+  },
+  "spec": {
+    "source": {
+      "type": "surveymonkey",
+      "connectionRef": "secret/data/analytics/connectors/HOSPITAL/sm-resurep-26",
+      "surveyId": "<TBD-survey-id>"
+    },
+    "pipeline": [
+      {
+        "id": "filter_validated",
+        "kind": "filter",
+        "label": "Soumissions validées uniquement",
+        "expression": "validation_status_id = 'validated'"
+      },
+      {
+        "id": "filter_periode",
+        "kind": "filter",
+        "label": "Semaine épidémiologique courante",
+        "expression": "date_observation BETWEEN date_trunc('week', now()) AND now()"
+      },
+      {
+        "id": "recode_especes",
+        "kind": "recode",
+        "label": "Normalisation codes espèces SurveyMonkey → libellés canoniques",
+        "field": "espece",
+        "alias": "espece_canonical",
+        "mapping": {
+          "BV": "Bovins",
+          "OV": "Ovins",
+          "CP": "Caprins",
+          "VOL": "Volaille",
+          "EQ": "Équidés",
+          "AUT": "Autres"
+        },
+        "default": "Autres"
+      },
+      {
+        "id": "agg_par_espece_region",
+        "kind": "aggregate",
+        "label": "Cas par espèce × région",
+        "groupBy": ["espece_canonical", "region"],
+        "aggregations": [
+          { "alias": "cas_confirmes", "function": "SUM", "field": "cas_confirmes" },
+          { "alias": "nb_foyers", "function": "COUNT_DISTINCT", "field": "foyer_id" }
+        ]
+      }
+    ],
+    "kpis": [
+      {
+        "id": "kpi_cas_total_semaine",
+        "label": "Cas confirmés cette semaine",
+        "description": "Somme des cas confirmés sur toutes espèces × régions. Polarité less_better : une hausse est péjorative.",
+        "expression": "SUM(cas_confirmes)",
+        "format": { "pattern": "#,##0", "decimals": 0 },
+        "polarity": "less_better",
+        "thresholds": { "warningPct": 110.0, "criticalPct": 150.0 },
+        "critical": true
+      },
+      {
+        "id": "kpi_foyers_actifs",
+        "label": "Foyers actifs",
+        "expression": "SUM(nb_foyers)",
+        "format": { "pattern": "#,##0", "decimals": 0 },
+        "polarity": "less_better"
+      }
+    ],
+    "visualizations": [
+      {
+        "id": "viz_half_donut_especes",
+        "type": "HALF_DONUT",
+        "title": "Cas confirmés par espèce animale",
+        "subtitle": "Semaine épidémiologique courante",
+        "encoding": {
+          "category": "espece_canonical",
+          "value": "cas_confirmes"
+        },
+        "style": { "palette": "diverging_rdylgn", "showLegend": true, "showLabels": true }
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "dashboard",
+        "dashboardCode": "resurep_surveillance_26",
+        "refreshSec": 1800
+      },
+      {
+        "kind": "email",
+        "to": ["dgsv-direction@gov.bf", "dgsv-alertes@gov.bf"],
+        "cc": ["coordination-resurep@gov.bf"],
+        "template": "resurep-weekly-summary",
+        "schedule": {
+          "cron": "0 0 8 ? * MON",
+          "timezone": "Africa/Ouagadougou",
+          "trigger": "cron"
+        }
+      }
+    ],
+    "driftPolicy": {
+      "onNewField": "REQUIRE_MAPPING",
+      "onRemovedField": "BLOCK",
+      "onTypeChange": "BLOCK",
+      "onRenamed": "SUGGEST",
+      "similarityThreshold": 0.90
+    }
+  }
+}
