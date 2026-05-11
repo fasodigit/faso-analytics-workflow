@@ -1,0 +1,28 @@
+<h1>FASO Analytics Workflow — Démos Phase 1</h1>
+<p class="subtitle">3 visualisations natives ECharts depuis 3 exemples canoniques (§9.3 du plan).</p>
+
+<div class="stack">
+  <section>
+    <h2>#03 — BAR_GROUPED — PAGSI volumes Région × Céréale</h2>
+    <app-echarts-renderer
+      [workflowDef]="barGroupedWorkflow"
+      [dataset]="barGroupedData"
+    ></app-echarts-renderer>
+  </section>
+
+  <section>
+    <h2>#05 — HALF_DONUT — RESUREP cas par espèce animale</h2>
+    <app-echarts-renderer
+      [workflowDef]="halfDonutWorkflow"
+      [dataset]="halfDonutData"
+    ></app-echarts-renderer>
+  </section>
+
+  <section>
+    <h2>#06 — COMBO_DUAL_AXIS — SONAGESS stock vs prix moyen</h2>
+    <app-echarts-renderer
+      [workflowDef]="comboDualAxisWorkflow"
+      [dataset]="comboDualAxisData"
+    ></app-echarts-renderer>
+  </section>
+</div>

@@ -24,7 +24,7 @@
     "@angular/router": "^19.0.0",
     "@ngx-formly/core": "^6.3.10",
     "@ngx-formly/material": "^6.3.10",
-    "@swimlane/ngx-graph": "^9.1.0",
+    "@swimlane/ngx-graph": "^9.0.1",
     "ag-grid-community": "^32.3.0",
     "ag-grid-angular": "^32.3.0",
     "echarts": "^5.5.1",

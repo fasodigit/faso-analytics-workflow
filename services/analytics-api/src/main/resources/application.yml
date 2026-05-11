@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: analytics-api
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5433/yugabyte
+    username: yugabyte
+    password: yugabyte
+  data:
+    redis:
+      url: redis://localhost:6380
+  cloud:
+    vault:
+      enabled: false
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+
+logging:
+  level:
+    root: INFO
+    bf.faso.analytics: DEBUG
