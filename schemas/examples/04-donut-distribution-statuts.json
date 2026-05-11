@@ -1,0 +1,55 @@
+{
+  "apiVersion": "analytics.faso/v1",
+  "kind": "AnalyticsWorkflow",
+  "metadata": {
+    "name": "etat-civil-actes-par-statut",
+    "subProject": "ETAT_CIVIL",
+    "semver": "1.0.0-draft.1",
+    "isCritical": false,
+    "owner": "user:traore.lionel@gmail.com",
+    "description": "Distribution des actes d'état civil par statut — camembert (donut)"
+  },
+  "spec": {
+    "source": {
+      "type": "yugabyte",
+      "connectionRef": "secret/data/analytics/connectors/ETAT_CIVIL/registres-prod",
+      "schema": "etat_civil_schema",
+      "table": "acte"
+    },
+    "pipeline": [
+      {
+        "id": "agg_par_statut",
+        "kind": "aggregate",
+        "label": "Compter par statut",
+        "groupBy": ["statut"],
+        "aggregations": [
+          { "alias": "nombre_actes", "function": "COUNT", "field": "acte_id" }
+        ]
+      }
+    ],
+    "kpis": [
+      {
+        "id": "kpi_total_actes",
+        "label": "Total actes enregistrés",
+        "expression": "COUNT(acte_id)",
+        "format": { "pattern": "#,##0", "decimals": 0 },
+        "polarity": "neutral"
+      }
+    ],
+    "visualizations": [
+      {
+        "id": "viz_donut_statuts",
+        "type": "DONUT",
+        "title": "Répartition des actes par statut",
+        "encoding": {
+          "category": "statut",
+          "value": "nombre_actes"
+        },
+        "style": { "palette": "categorical_set1", "showLegend": true, "showLabels": true }
+      }
+    ],
+    "outputs": [
+      { "kind": "dashboard", "dashboardCode": "etat_civil_statuts", "refreshSec": 300 }
+    ]
+  }
+}

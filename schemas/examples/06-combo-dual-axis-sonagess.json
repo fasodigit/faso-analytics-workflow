@@ -1,0 +1,101 @@
+{
+  "apiVersion": "analytics.faso/v1",
+  "kind": "AnalyticsWorkflow",
+  "metadata": {
+    "name": "sonagess-stock-physique-vs-prix-moyen",
+    "subProject": "VOUCHERS",
+    "semver": "1.0.0-draft.1",
+    "labels": { "demo": "phase-2-livrable", "thematique": "securite-alimentaire" },
+    "isCritical": true,
+    "owner": "user:directeur@sonagess.gov.bf",
+    "description": "Démo Phase 2.2 — SONAGESS : stock physique (barres, axe gauche tonnes) vs prix moyen (courbe, axe droit FCFA/kg) — graphique en double échelle"
+  },
+  "spec": {
+    "source": {
+      "type": "yugabyte",
+      "connectionRef": "secret/data/analytics/connectors/VOUCHERS/sonagess-prod",
+      "schema": "voucher_schema",
+      "table": "stock_quotidien"
+    },
+    "pipeline": [
+      {
+        "id": "filter_12_derniers_mois",
+        "kind": "filter",
+        "label": "12 derniers mois",
+        "expression": "date_releve >= now() - INTERVAL '12 months'"
+      },
+      {
+        "id": "agg_mensuel",
+        "kind": "aggregate",
+        "label": "Agrégation mensuelle",
+        "groupBy": ["mois"],
+        "aggregations": [
+          { "alias": "stock_tonnes",     "function": "SUM", "field": "stock_kg" },
+          { "alias": "prix_moyen_fcfa",  "function": "AVG", "field": "prix_fcfa_kg" }
+        ]
+      },
+      {
+        "id": "computed_tonnes",
+        "kind": "computed",
+        "label": "kg → tonnes",
+        "alias": "stock_tonnes",
+        "expression": "stock_tonnes / 1000.0",
+        "type": "DOUBLE"
+      }
+    ],
+    "kpis": [
+      {
+        "id": "kpi_stock_actuel",
+        "label": "Stock national actuel",
+        "expression": "MAX(stock_tonnes) WHERE mois = date_trunc('month', now())",
+        "format": { "pattern": "#,##0", "unit": "t", "decimals": 0 },
+        "polarity": "more_better",
+        "thresholds": { "warningPct": 90.0, "criticalPct": 70.0 },
+        "target": { "source": "literal", "value": 25000 }
+      },
+      {
+        "id": "kpi_prix_moyen_actuel",
+        "label": "Prix moyen courant",
+        "expression": "AVG(prix_fcfa_kg) WHERE mois = date_trunc('month', now())",
+        "format": { "pattern": "FCFA #,##0", "unit": "FCFA/kg", "decimals": 0 },
+        "polarity": "less_better"
+      }
+    ],
+    "visualizations": [
+      {
+        "id": "viz_combo_stock_prix",
+        "type": "COMBO_DUAL_AXIS",
+        "title": "Stock physique national vs prix moyen",
+        "subtitle": "Évolution mensuelle sur 12 mois",
+        "encoding": {
+          "xField": "mois",
+          "leftAxis": {
+            "seriesType": "BAR",
+            "field": "stock_tonnes",
+            "aggregation": "SUM",
+            "label": "Stock physique",
+            "min": 0,
+            "scale": "LINEAR",
+            "format": { "pattern": "#,##0", "unit": "t", "decimals": 0 }
+          },
+          "rightAxis": {
+            "seriesType": "LINE",
+            "field": "prix_moyen_fcfa",
+            "aggregation": "AVG",
+            "label": "Prix moyen",
+            "min": 0,
+            "scale": "LINEAR",
+            "format": { "pattern": "FCFA #,##0", "unit": "FCFA/kg", "decimals": 0 }
+          }
+        },
+        "style": { "palette": "faso_default", "showLegend": true, "showGrid": true }
+      }
+    ],
+    "outputs": [
+      { "kind": "dashboard", "dashboardCode": "sonagess_stock_prix", "refreshSec": 300 },
+      { "kind": "pdf",       "template": "sonagess-monthly-report",
+        "schedule": { "cron": "0 0 7 1 * ?", "timezone": "Africa/Ouagadougou", "trigger": "cron" },
+        "deliverTo": ["dgaep-cabinet@gov.bf", "sonagess-direction@gov.bf"] }
+    ]
+  }
+}

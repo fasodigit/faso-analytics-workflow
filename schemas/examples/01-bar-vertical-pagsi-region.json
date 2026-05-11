@@ -1,0 +1,68 @@
+{
+  "apiVersion": "analytics.faso/v1",
+  "kind": "AnalyticsWorkflow",
+  "metadata": {
+    "name": "pagsi-superficie-amenagee-par-region",
+    "subProject": "VOUCHERS",
+    "semver": "1.0.0-draft.1",
+    "labels": { "domaine": "agriculture", "thematique": "amenagements" },
+    "isCritical": false,
+    "owner": "user:traore.lionel@gmail.com",
+    "description": "Volume de superficies aménagées par région BF — barre verticale (debout)"
+  },
+  "spec": {
+    "source": {
+      "type": "yugabyte",
+      "connectionRef": "secret/data/analytics/connectors/VOUCHERS/pagsi-prod",
+      "schema": "voucher_schema",
+      "table": "perimetre_amenage"
+    },
+    "pipeline": [
+      {
+        "id": "filter_actifs",
+        "kind": "filter",
+        "label": "Périmètres actifs uniquement",
+        "expression": "statut IN ('termine', 'en_cours') AND superficie_ha > 0"
+      },
+      {
+        "id": "agg_par_region",
+        "kind": "aggregate",
+        "label": "Somme superficie par région",
+        "groupBy": ["region"],
+        "aggregations": [
+          { "alias": "superficie_totale_ha", "function": "SUM", "field": "superficie_ha" }
+        ]
+      }
+    ],
+    "kpis": [
+      {
+        "id": "kpi_superficie_nationale",
+        "label": "Superficie nationale aménagée",
+        "expression": "SUM(superficie_ha)",
+        "format": { "pattern": "#,##0", "unit": "ha", "decimals": 0 },
+        "polarity": "more_better",
+        "target": { "source": "literal", "value": 5000 }
+      }
+    ],
+    "visualizations": [
+      {
+        "id": "viz_bar_vertical_region",
+        "type": "BAR_VERTICAL",
+        "title": "Superficie aménagée par région",
+        "subtitle": "Hectares cumulés depuis le début du programme",
+        "encoding": {
+          "xField": "region",
+          "yField": "superficie_totale_ha"
+        },
+        "style": { "palette": "sequential_blue", "showLegend": false, "showLabels": true }
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "dashboard",
+        "dashboardCode": "pagsi_superficie_nationale",
+        "refreshSec": 300
+      }
+    ]
+  }
+}

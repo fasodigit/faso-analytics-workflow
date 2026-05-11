@@ -1,0 +1,64 @@
+{
+  "apiVersion": "analytics.faso/v1",
+  "kind": "AnalyticsWorkflow",
+  "metadata": {
+    "name": "hospital-admissions-multi-region",
+    "subProject": "HOSPITAL",
+    "semver": "1.0.0-draft.1",
+    "isCritical": true,
+    "owner": "user:directeur@sante.gov.bf",
+    "description": "Évolution des admissions hospitalières quotidiennes par région (courbes multiples)"
+  },
+  "spec": {
+    "source": {
+      "type": "yugabyte",
+      "connectionRef": "secret/data/analytics/connectors/HOSPITAL/admissions-prod",
+      "schema": "hospital_schema",
+      "table": "admission"
+    },
+    "pipeline": [
+      {
+        "id": "filter_validated",
+        "kind": "filter",
+        "label": "Admissions validées",
+        "expression": "validation_status_id = 'validated' AND date_admission >= now() - INTERVAL '30 days'"
+      },
+      {
+        "id": "agg_jour_region",
+        "kind": "aggregate",
+        "label": "Comptage jour × région",
+        "groupBy": ["date_admission", "region"],
+        "aggregations": [
+          { "alias": "nb_admissions", "function": "COUNT", "field": "admission_id" }
+        ]
+      }
+    ],
+    "kpis": [
+      {
+        "id": "kpi_admissions_aujourdhui",
+        "label": "Admissions aujourd'hui",
+        "expression": "SUM(nb_admissions) WHERE date_admission = current_date",
+        "format": { "pattern": "#,##0", "decimals": 0 },
+        "polarity": "neutral",
+        "critical": true
+      }
+    ],
+    "visualizations": [
+      {
+        "id": "viz_line_multi_admissions",
+        "type": "LINE_MULTI",
+        "title": "Admissions hospitalières — 30 derniers jours",
+        "subtitle": "Une courbe par région",
+        "encoding": {
+          "xField": "date_admission",
+          "yField": "nb_admissions",
+          "series": "region"
+        },
+        "style": { "palette": "categorical_set1", "showLegend": true, "showGrid": true }
+      }
+    ],
+    "outputs": [
+      { "kind": "dashboard", "dashboardCode": "hospital_admissions_evolution", "refreshSec": 60 }
+    ]
+  }
+}

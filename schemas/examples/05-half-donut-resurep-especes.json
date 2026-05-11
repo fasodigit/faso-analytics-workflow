@@ -1,0 +1,91 @@
+{
+  "apiVersion": "analytics.faso/v1",
+  "kind": "AnalyticsWorkflow",
+  "metadata": {
+    "name": "resurep-cas-par-espece-animale",
+    "subProject": "HOSPITAL",
+    "semver": "1.0.0-draft.1",
+    "labels": { "demo": "phase-2-livrable", "thematique": "sante-animale" },
+    "isCritical": true,
+    "owner": "user:vet.bankui@dgsv.gov.bf",
+    "description": "Démo Phase 2.3 — RESUREP : répartition des cas par espèce animale (demi-cercle)"
+  },
+  "spec": {
+    "source": {
+      "type": "yugabyte",
+      "connectionRef": "secret/data/analytics/connectors/HOSPITAL/resurep-26",
+      "schema": "hospital_schema",
+      "table": "resurep_submission"
+    },
+    "pipeline": [
+      {
+        "id": "filter_validated",
+        "kind": "filter",
+        "label": "Soumissions validées uniquement",
+        "expression": "validation_status_id = 'validated'"
+      },
+      {
+        "id": "filter_periode",
+        "kind": "filter",
+        "label": "Semaine épidémiologique courante",
+        "expression": "date_observation BETWEEN date_trunc('week', now()) AND now()"
+      },
+      {
+        "id": "agg_par_espece",
+        "kind": "aggregate",
+        "label": "Cas par espèce",
+        "groupBy": ["espece_animale"],
+        "aggregations": [
+          { "alias": "cas_confirmes", "function": "SUM", "field": "cas_confirmes" }
+        ]
+      }
+    ],
+    "kpis": [
+      {
+        "id": "kpi_cas_total_semaine",
+        "label": "Cas confirmés cette semaine",
+        "expression": "SUM(cas_confirmes)",
+        "format": { "pattern": "#,##0", "decimals": 0 },
+        "polarity": "less_better",
+        "thresholds": { "warningPct": 110.0, "criticalPct": 150.0 },
+        "critical": true
+      }
+    ],
+    "visualizations": [
+      {
+        "id": "viz_half_donut_especes",
+        "type": "HALF_DONUT",
+        "title": "Cas confirmés par espèce animale",
+        "subtitle": "Semaine épidémiologique courante",
+        "encoding": {
+          "category": "espece_animale",
+          "value": "cas_confirmes"
+        },
+        "style": { "palette": "diverging_rdylgn", "showLegend": true, "showLabels": true }
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "dashboard",
+        "dashboardCode": "resurep_especes",
+        "refreshSec": 300
+      },
+      {
+        "kind": "email",
+        "to": ["dgsv-alertes@gov.bf"],
+        "template": "resurep-weekly-summary",
+        "schedule": {
+          "cron": "0 0 8 ? * MON",
+          "timezone": "Africa/Ouagadougou",
+          "trigger": "cron"
+        }
+      }
+    ],
+    "driftPolicy": {
+      "onNewField": "REQUIRE_MAPPING",
+      "onRemovedField": "BLOCK",
+      "onTypeChange": "REQUIRE_CAST",
+      "onRenamed": "SUGGEST"
+    }
+  }
+}

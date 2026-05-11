@@ -1,0 +1,72 @@
+{
+  "apiVersion": "analytics.faso/v1",
+  "kind": "AnalyticsWorkflow",
+  "metadata": {
+    "name": "pagsi-volumes-region-x-cereale",
+    "subProject": "VOUCHERS",
+    "semver": "1.0.0-draft.1",
+    "labels": { "demo": "phase-2-livrable" },
+    "isCritical": false,
+    "owner": "user:traore.lionel@gmail.com",
+    "description": "Démo Phase 2.1 — Volumes distribués par Région × Type de céréale (barres groupées)"
+  },
+  "spec": {
+    "source": {
+      "type": "yugabyte",
+      "connectionRef": "secret/data/analytics/connectors/VOUCHERS/pagsi-prod",
+      "schema": "voucher_schema",
+      "table": "distribution"
+    },
+    "pipeline": [
+      {
+        "id": "filter_periode",
+        "kind": "filter",
+        "label": "Campagne 2025-2026",
+        "expression": "campagne = '2025-2026'"
+      },
+      {
+        "id": "agg_region_cereale",
+        "kind": "aggregate",
+        "label": "Volumes par région × céréale",
+        "groupBy": ["region", "type_cereale"],
+        "aggregations": [
+          { "alias": "volume_tonnes", "function": "SUM", "field": "volume_kg" }
+        ]
+      },
+      {
+        "id": "computed_tonnes",
+        "kind": "computed",
+        "label": "Conversion kg → tonnes",
+        "alias": "volume_tonnes",
+        "expression": "volume_tonnes / 1000.0",
+        "type": "DOUBLE"
+      }
+    ],
+    "kpis": [
+      {
+        "id": "kpi_volume_total",
+        "label": "Volume total distribué",
+        "expression": "SUM(volume_tonnes)",
+        "format": { "pattern": "#,##0.0", "unit": "t", "decimals": 1 },
+        "polarity": "more_better"
+      }
+    ],
+    "visualizations": [
+      {
+        "id": "viz_bar_grouped_region_cereale",
+        "type": "BAR_GROUPED",
+        "title": "Volumes distribués par Région × Type de céréale",
+        "subtitle": "Campagne 2025-2026 — tonnes",
+        "encoding": {
+          "xField": "region",
+          "yField": "volume_tonnes",
+          "series": "type_cereale"
+        },
+        "style": { "palette": "categorical_set1", "showLegend": true, "showLabels": false }
+      }
+    ],
+    "outputs": [
+      { "kind": "dashboard", "dashboardCode": "pagsi_region_cereale", "refreshSec": 1800 }
+    ]
+  }
+}

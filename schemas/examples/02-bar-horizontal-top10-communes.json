@@ -1,0 +1,63 @@
+{
+  "apiVersion": "analytics.faso/v1",
+  "kind": "AnalyticsWorkflow",
+  "metadata": {
+    "name": "top10-communes-superficie",
+    "subProject": "VOUCHERS",
+    "semver": "1.0.0-draft.1",
+    "isCritical": false,
+    "owner": "user:traore.lionel@gmail.com",
+    "description": "Top 10 communes par superficie aménagée — barre horizontale (couchée)"
+  },
+  "spec": {
+    "source": {
+      "type": "yugabyte",
+      "connectionRef": "secret/data/analytics/connectors/VOUCHERS/pagsi-prod",
+      "schema": "voucher_schema",
+      "table": "perimetre_amenage"
+    },
+    "pipeline": [
+      {
+        "id": "agg_commune",
+        "kind": "aggregate",
+        "label": "Somme par commune",
+        "groupBy": ["commune"],
+        "aggregations": [
+          { "alias": "superficie_ha", "function": "SUM", "field": "superficie_ha" }
+        ]
+      },
+      {
+        "id": "rank_commune",
+        "kind": "window",
+        "label": "Classement décroissant",
+        "alias": "rank",
+        "function": "RANK",
+        "partitionBy": [],
+        "orderBy": [{ "field": "superficie_ha", "direction": "DESC" }]
+      },
+      {
+        "id": "top10",
+        "kind": "filter",
+        "label": "Garder le top 10",
+        "expression": "rank <= 10"
+      }
+    ],
+    "kpis": [],
+    "visualizations": [
+      {
+        "id": "viz_bar_horizontal_top10",
+        "type": "BAR_HORIZONTAL",
+        "title": "Top 10 communes par superficie aménagée",
+        "subtitle": "Hectares (échelle linéaire)",
+        "encoding": {
+          "xField": "superficie_ha",
+          "yField": "commune"
+        },
+        "style": { "palette": "categorical_set1", "showLegend": false, "showLabels": true }
+      }
+    ],
+    "outputs": [
+      { "kind": "dashboard", "dashboardCode": "pagsi_top10_communes", "refreshSec": 1800 }
+    ]
+  }
+}

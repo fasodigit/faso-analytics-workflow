@@ -1,0 +1,76 @@
+{
+  "apiVersion": "analytics.faso/v1",
+  "kind": "AnalyticsWorkflow",
+  "metadata": {
+    "name": "vaccination-couverture-par-region",
+    "subProject": "HOSPITAL",
+    "semver": "1.0.0-draft.1",
+    "isCritical": true,
+    "owner": "user:directeur@sante.gov.bf",
+    "description": "Taux de couverture vaccinale par région — choroplèthe Burkina Faso"
+  },
+  "spec": {
+    "source": {
+      "type": "yugabyte",
+      "connectionRef": "secret/data/analytics/connectors/HOSPITAL/vaccination-prod",
+      "schema": "hospital_schema",
+      "table": "vaccination_seance"
+    },
+    "pipeline": [
+      {
+        "id": "join_population",
+        "kind": "join",
+        "label": "Joindre population par région",
+        "right": "mdm_region_population",
+        "on": [{ "left": "region_code", "right": "code" }],
+        "joinType": "LEFT"
+      },
+      {
+        "id": "agg_par_region",
+        "kind": "aggregate",
+        "label": "Vaccinés par région",
+        "groupBy": ["region_code", "region_name", "population_cible"],
+        "aggregations": [
+          { "alias": "vaccines", "function": "COUNT_DISTINCT", "field": "beneficiaire_id" }
+        ]
+      },
+      {
+        "id": "computed_taux",
+        "kind": "computed",
+        "label": "Taux couverture",
+        "alias": "taux_couverture",
+        "expression": "CAST(vaccines AS DOUBLE) / population_cible * 100",
+        "type": "DOUBLE"
+      }
+    ],
+    "kpis": [
+      {
+        "id": "kpi_couverture_nationale",
+        "label": "Couverture vaccinale nationale",
+        "expression": "SUM(vaccines) * 100.0 / SUM(population_cible)",
+        "format": { "pattern": "0.0", "unit": "%", "decimals": 1 },
+        "polarity": "more_better",
+        "thresholds": { "warningPct": 75.0, "criticalPct": 60.0 },
+        "target": { "source": "literal", "value": 90 },
+        "critical": true
+      }
+    ],
+    "visualizations": [
+      {
+        "id": "viz_choropleth_couverture",
+        "type": "CHOROPLETH_BF",
+        "title": "Taux de couverture vaccinale par région",
+        "subtitle": "Cumul depuis le début de la campagne",
+        "encoding": {
+          "regionField": "region_code",
+          "valueField": "taux_couverture",
+          "level": "region"
+        },
+        "style": { "palette": "diverging_rdylgn", "showLegend": true }
+      }
+    ],
+    "outputs": [
+      { "kind": "dashboard", "dashboardCode": "vaccination_couverture", "refreshSec": 1800 }
+    ]
+  }
+}
