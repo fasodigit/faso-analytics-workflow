@@ -1,0 +1,109 @@
+{
+  "apiVersion": "analytics.faso/v1",
+  "kind": "AnalyticsWorkflow",
+  "metadata": {
+    "name": "pagsi-volumes-region-cereale",
+    "subProject": "VOUCHERS",
+    "semver": "1.0.0",
+    "labels": {
+      "migrated_from": "metabase:card:124",
+      "reference_dashboard": "true",
+      "sla.refresh_minutes": "5"
+    },
+    "isCritical": true,
+    "owner": "user:cabinet-dgaep@gov.bf",
+    "description": "PAGSI — Volumes distribués par Région × Type de céréale. Tableau de bord phare DGAEP / SONAGESS, campagne 2025-2026. Migré depuis Metabase card 124 dans le cadre Phase 4 cutover."
+  },
+  "spec": {
+    "source": {
+      "type": "yugabyte",
+      "connectionRef": "secret/data/analytics/connectors/VOUCHERS/pagsi-prod-readreplica",
+      "schema": "voucher_schema",
+      "table": "distribution"
+    },
+    "pipeline": [
+      {
+        "id": "filter_campagne",
+        "kind": "filter",
+        "label": "Campagne 2025-2026 — validations terrain",
+        "expression": "campagne = '2025-2026' AND validation_status_id = 'validated'"
+      },
+      {
+        "id": "agg_region_cereale",
+        "kind": "aggregate",
+        "label": "Volumes par région × céréale",
+        "groupBy": ["region", "type_cereale"],
+        "aggregations": [
+          { "alias": "volume_kg_total", "function": "SUM", "field": "volume_kg" },
+          { "alias": "nb_beneficiaires", "function": "COUNT_DISTINCT", "field": "beneficiaire_id" }
+        ]
+      },
+      {
+        "id": "computed_tonnes",
+        "kind": "computed",
+        "label": "Conversion kg → tonnes",
+        "alias": "volume_tonnes",
+        "expression": "volume_kg_total / 1000.0",
+        "type": "DOUBLE"
+      }
+    ],
+    "kpis": [
+      {
+        "id": "kpi_volume_total",
+        "label": "Volume total distribué",
+        "description": "Volume cumulé sur la campagne (toutes régions × céréales). Cible portée par form cible_form du module Cibles SONAGESS.",
+        "expression": "SUM(volume_tonnes)",
+        "format": { "pattern": "#,##0.0", "unit": "t", "decimals": 1 },
+        "polarity": "more_better",
+        "target": { "source": "cible_form", "formId": "<TBD-cible-uuid>" },
+        "thresholds": { "warningPct": 85.0, "criticalPct": 70.0 },
+        "critical": true
+      },
+      {
+        "id": "kpi_beneficiaires_total",
+        "label": "Nombre de bénéficiaires uniques",
+        "expression": "SUM(nb_beneficiaires)",
+        "format": { "pattern": "#,##0", "decimals": 0 },
+        "polarity": "more_better"
+      }
+    ],
+    "visualizations": [
+      {
+        "id": "viz_bar_grouped_region_cereale",
+        "type": "BAR_GROUPED",
+        "title": "Volumes distribués par Région × Type de céréale",
+        "subtitle": "Campagne 2025-2026 — tonnes",
+        "encoding": {
+          "xField": "region",
+          "yField": "volume_tonnes",
+          "series": "type_cereale"
+        },
+        "style": { "palette": "categorical_set1", "showLegend": true, "showLabels": false, "showGrid": true }
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "dashboard",
+        "dashboardCode": "pagsi_region_cereale",
+        "refreshSec": 300
+      },
+      {
+        "kind": "pdf",
+        "template": "pagsi-monthly-report",
+        "schedule": {
+          "cron": "0 0 7 1 * ?",
+          "timezone": "Africa/Ouagadougou",
+          "trigger": "cron"
+        },
+        "deliverTo": ["dgaep-cabinet@gov.bf", "sonagess-direction@gov.bf"]
+      }
+    ],
+    "driftPolicy": {
+      "onNewField": "REQUIRE_MAPPING",
+      "onRemovedField": "BLOCK",
+      "onTypeChange": "BLOCK",
+      "onRenamed": "SUGGEST",
+      "similarityThreshold": 0.92
+    }
+  }
+}
